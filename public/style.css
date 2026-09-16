@@ -305,6 +305,6 @@ body {
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 200;
   background: var(--bg3); border: 1px solid var(--border); color: var(--text);
-  border-radius: 12px; padding: 12px 20px; font-size: 13.5px; box-shadow: 0 2 0 16px 40px rgba(0, 0, 0, 0.5);
+  border-radius: 12px; padding: 12px 20px; font-size: 13.5px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
   max-width: 90vw; text-align: center;
 }
