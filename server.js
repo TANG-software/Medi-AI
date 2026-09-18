@@ -68,11 +68,8 @@ const LANGUAGES = [
   { code: 'ro-RO', name: 'Română — Romanian' }, { code: 'el-GR', name: 'Ελληνικά — Greek' },
   { code: 'he-IL', name: 'עברית — Hebrew' }, { code: 'sw-KE', name: 'Kiswahili — Swahili' },
   { code: 'ha-NG', name: 'Hausa' }, { code: 'cs-CZ', name: 'Čeština — Czech' },
-  { code: 'hu-HU', name: 'Magyar — Hungarian' },
-  { code: 'sv-SE', name: 'Svenska — Swedish' },
-  { code: 'no-NO', name: 'Norsk — Norwegian' },
-  { code: 'da-DK', name: 'Dansk — Danish' },
-  { code: 'fi-FI', name: 'Suomi — Finnish' },
+  { code: 'hu-HU', name: 'Magyar — Hungarian' }, { code: 'sv-SE', name: 'Svenska — Swedish' },
+  { code: 'no-NO', name: 'Norsk — Norwegian' }, { code: 'da-DK', name: 'Dansk — Danish' }, { code: 'fi-FI', name: 'Suomi — Finnish' },
 ];
 
 /* --------------------------- emergencies --------------------------- */
@@ -181,7 +178,7 @@ app.get('/api/me', (req, res) => {
   res.json({
     user: u ? publicUser(u) : null,
     plans: PLANS,
-    providers: ai.available(),
+    engines: ai.available().length,
     languages: LANGUAGES,
   });
 });
@@ -189,10 +186,9 @@ app.get('/api/me', (req, res) => {
 /* ---------------------------- settings ---------------------------- */
 app.post('/api/settings', requireAuth, (req, res) => {
   const u = currentUser(req);
-  const { language, provider } = req.body || {};
+  const { language } = req.body || {};
   const lang = LANGUAGES.find((l) => l.code === language) || LANGUAGES.find((l) => l.code === u.language) || LANGUAGES[0];
-  const prov = (provider && ai.available().some((p) => p.id === provider)) ? provider : null;
-  const updated = db.setPrefs(u.id, lang.code, prov);
+  const updated = db.setPrefs(u.id, lang.code, null);
   res.json({ ok: true, user: publicUser(updated) });
 });
 
@@ -217,7 +213,7 @@ app.delete('/api/chats/:id', requireAuth, (req, res) => {
 app.post('/api/chat', requireAuth, async (req, res) => {
   try {
     const u = currentUser(req);
-    const { chatId, text, mode = 'chat', language, provider } = req.body || {};
+    const { chatId, text, mode = 'chat', language } = req.body || {};
     const body = String(text || '').trim();
     if (!body) return res.status(400).json({ error: 'Message is empty.' });
     if (body.length > 8000) return res.status(400).json({ error: 'Message is too long (max 8000 characters).' });
@@ -243,7 +239,12 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
     db.addMessage(chat.id, 'user', body);
 
-    const result = await ai.chat(provider || u.provider || null, messages);
+    // Pro plan: multi-engine "Collective" answer (2 engines + synthesis).
+    // Everyone else: single engine with automatic fallback. Engine
+    // identities are never exposed to the client — only the count.
+    const result = fresh.plan === 'pro'
+      ? await ai.ensembleChat(messages)
+      : await ai.chat(null, messages);
     db.addMessage(chat.id, 'assistant', result.text);
     db.touchChat(chat.id);
 
@@ -257,7 +258,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const credits = db.deductCredits(u.id, cost);
     res.json({
       ok: true, chatId: chat.id, reply: result.text,
-      provider: result.provider, credits, emergency, reportId,
+      engines: result.engines || 1, credits, emergency, reportId,
     });
   } catch (e) {
     console.error('[chat] ' + e.message);
@@ -482,7 +483,7 @@ app.get('/api/admin/sync-status', requireAuth, (req, res) => {
   if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
   res.json({
     uptime: Math.round(process.uptime()),
-    providers: ai.available(),
+    engines: ai.available().length,
     users: db.userCount(),
     knowledge: db.listKB().length,
     payments: !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
@@ -543,5 +544,5 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log('[medi-ai] listening on port ' + PORT);
-  console.log('[medi-ai] AI providers with keys: ' + (ai.available().map((p) => p.id).join(', ') || 'NONE — set API keys!'));
+  console.log('[medi-ai] AI engines with keys: ' + (ai.available().length || 'NONE — set API keys!'));
 });
