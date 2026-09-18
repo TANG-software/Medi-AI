@@ -57,3 +57,15 @@ public/app.js             Client logic: chat, OCR, voice, settings, admin
 public/sw.js              Service worker (offline app shell)
 public/manifest.webmanifest
 ```
+
+## v1.1 features
+
+- **Dashboard** — credits, plan, chat & report stats, recent activity
+- **Saved Reports** — every Report Lens analysis is stored, viewable and deletable
+- **Pricing page** — plans with Razorpay checkout (needs `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET`)
+- **Coupons** — admin creates them (instant credits or % off); users redeem on the Pricing page
+- **Report a problem** — users send bug reports; admins view and close them
+- **About page** — what Medi AI is and its safety limits
+- **Admin panel** — tabs: Users, Knowledge (add/delete KB topics), Coupons, Problems, Status
+- **WhatsApp bot** — `/whatsapp/webhook` answers health questions via WhatsApp (needs `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_ID`)
+- **AI model auto-discovery** — if a provider retires a model, the app switches automatically
