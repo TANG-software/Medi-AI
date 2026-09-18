@@ -1,6 +1,6 @@
 /* ================================================================
    Medi AI — client app
-   Auth · chats · multi-mode composer · voice input · Report Lens
+   Auth (email) · chats · multi-mode composer · voice input · Report Lens
    (OCR on-device) · settings · admin · PWA
    ================================================================ */
 'use strict';
@@ -117,6 +117,15 @@ function setAuthMode(m) {
   $('#tabLogin').classList.toggle('active', m === 'login');
   $('#tabSignup').classList.toggle('active', m === 'signup');
   $('#authSubmit').textContent = m === 'login' ? 'Log in' : 'Create account';
+  // Email is required for signup; login works with email OR username.
+  const signup = m === 'signup';
+  $('#emailLabel').style.display = signup ? '' : 'none';
+  $('#authEmail').style.display = signup ? '' : 'none';
+  if (!signup) $('#authEmail').removeAttribute('required');
+  else $('#authEmail').setAttribute('required', '');
+  $('#usernameLabel').textContent = signup ? 'Username' : 'Email or username';
+  $('#authUsername').placeholder = signup ? 'e.g. rahul2001' : 'you@example.com or rahul2001';
+  $('#passwordLabel').textContent = signup ? 'Create password' : 'Password';
   $('#authError').classList.add('hidden');
 }
 $('#tabLogin').addEventListener('click', () => setAuthMode('login'));
@@ -125,12 +134,16 @@ $('#tabSignup').addEventListener('click', () => setAuthMode('signup'));
 $('#authForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const username = $('#authUsername').value.trim();
+  const email = authMode === 'signup' ? $('#authEmail').value.trim() : '';
   const password = $('#authPassword').value;
   const btn = $('#authSubmit');
   btn.disabled = true; btn.textContent = 'Please wait…';
   $('#authError').classList.add('hidden');
   try {
-    const r = await api('/api/' + (authMode === 'login' ? 'login' : 'signup'), { method: 'POST', body: { username, password } });
+    const r = await api('/api/' + (authMode === 'login' ? 'login' : 'signup'), {
+      method: 'POST',
+      body: authMode === 'login' ? { username, password } : { username, email, password },
+    });
     enterApp(r.user);
   } catch (err) {
     const el = $('#authError');
@@ -647,7 +660,7 @@ async function renderPricing() {
         <input id="couponInput" type="text" placeholder="Enter coupon code" autocomplete="off">
         <button class="btn-gold small" id="couponBtn">Redeem</button>
       </div>
-      <p class="modal-hint" id="couponMsg">Credit coupons add credits instantly; discount coupons apply at checkout. One-time packs never expire — subscription credits refresh weekly.</p>
+      <p class="modal-hint" id="couponMsg">Credit coupons add credits instantly; discount coupons apply at checkout. One-time packs never expire — subscription credits refresh weekly. Pay with UPI, cards, netbanking or wallets via Razorpay.</p>
     </div>`;
 }
 
@@ -660,7 +673,7 @@ function renderAbout() {
       <div class="md">
         <p>Medi AI helps you understand health questions and medical reports in simple language, in <b>50+ languages</b> — all 22 official Indian languages included.</p>
         <p>It combines <b>multiple AI engines</b> with a curated medical knowledge base, automatically falls back if one engine is busy, and detects emergencies. Higher plans get more engines working together on every answer.</p>
-        <p><b>Features:</b> medical chat, Report Lens (photo → explanation), voice input, saved reports, plans & credits, coupons, dashboard, admin tools and a WhatsApp bot.</p>
+        <p><b>Features:</b> medical chat, Report Lens (photo → explanation), voice input, read-aloud answers, saved reports, plans & credits, coupons, dashboard, admin tools and a WhatsApp bot.</p>
         <p><b>Important:</b> Medi AI provides general information, not a medical diagnosis. In an emergency, call <b>112</b> (India) or your local emergency number.</p>
       </div>
     </div>`;
