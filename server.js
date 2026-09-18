@@ -32,11 +32,7 @@ app.use(session({
 }));
 
 /* ------------------------------ plans ------------------------------ */
-const PLANS = {
-  free: { label: 'Free', credits: 50,   priceInr: 0   },
-  plus: { label: 'Plus', credits: 1000, priceInr: 199 },
-  pro:  { label: 'Pro',  credits: 5000, priceInr: 499 },
-};
+const PLANS = db.PLANS;
 
 /* --------------------------- languages ---------------------------- */
 const LANGUAGES = [
@@ -68,8 +64,11 @@ const LANGUAGES = [
   { code: 'ro-RO', name: 'Română — Romanian' }, { code: 'el-GR', name: 'Ελληνικά — Greek' },
   { code: 'he-IL', name: 'עברית — Hebrew' }, { code: 'sw-KE', name: 'Kiswahili — Swahili' },
   { code: 'ha-NG', name: 'Hausa' }, { code: 'cs-CZ', name: 'Čeština — Czech' },
-  { code: 'hu-HU', name: 'Magyar — Hungarian' }, { code: 'sv-SE', name: 'Svenska — Swedish' },
-  { code: 'no-NO', name: 'Norsk — Norwegian' }, { code: 'da-DK', name: 'Dansk — Danish' }, { code: 'fi-FI', name: 'Suomi — Finnish' },
+  { code: 'hu-HU', name: 'Magyar — Hungarian' },
+  { code: 'sv-SE', name: 'Svenska — Swedish' },
+  { code: 'no-NO', name: 'Norsk — Norwegian' },
+  { code: 'da-DK', name: 'Dansk — Danish' },
+  { code: 'fi-FI', name: 'Suomi — Finnish' },
 ];
 
 /* --------------------------- emergencies --------------------------- */
@@ -239,11 +238,12 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 
     db.addMessage(chat.id, 'user', body);
 
-    // Pro plan: multi-engine "Collective" answer (2 engines + synthesis).
-    // Everyone else: single engine with automatic fallback. Engine
-    // identities are never exposed to the client — only the count.
-    const result = fresh.plan === 'pro'
-      ? await ai.ensembleChat(messages)
+    // Engine count depends on the plan: Free = 2 engines, Plus = 3,
+    // Plus+ = 4, Pro tiers = all available engines, working collectively.
+    // If an engine fails, the remaining engines still answer.
+    const plan = PLANS[fresh.plan] || PLANS.free;
+    const result = plan.engines > 1
+      ? await ai.ensembleChat(messages, plan.engines)
       : await ai.chat(null, messages);
     db.addMessage(chat.id, 'assistant', result.text);
     db.touchChat(chat.id);
@@ -283,7 +283,9 @@ app.post('/api/admin/plan', requireAuth, (req, res) => {
   if (!target) return res.status(404).json({ error: 'User not found.' });
   const p = PLANS[plan];
   if (!p) return res.status(400).json({ error: 'Unknown plan: ' + plan });
-  const updated = db.setPlan(target.id, plan, p.credits);
+  const now = Math.floor(Date.now() / 1000);
+  const expires = p.weeks ? now + p.weeks * 7 * 86400 : null;
+  const updated = db.setPlan(target.id, plan, p.credits, expires, now);
   res.json({ ok: true, user: publicUser(updated) });
 });
 
@@ -367,7 +369,7 @@ app.post('/api/payment/create-order', requireAuth, async (req, res) => {
     const u = currentUser(req);
     const { plan, coupon } = req.body || {};
     const p = PLANS[plan];
-    if (!p || !p.priceInr) return res.status(400).json({ error: 'Choose the Plus or Pro plan to pay.' });
+    if (!p || !p.priceInr) return res.status(400).json({ error: 'Choose a paid plan to continue.' });
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
       return res.status(503).json({ error: 'Payments are not configured yet. Contact the administrator to upgrade your plan.' });
     }
@@ -412,7 +414,9 @@ app.post('/api/payment/verify', requireAuth, (req, res) => {
   const target = order.plan || plan;
   const p = PLANS[target];
   if (!p) return res.status(400).json({ error: 'Unknown plan on order.' });
-  const updated = db.setPlan(u.id, target, p.credits);
+  const now = Math.floor(Date.now() / 1000);
+  const expires = p.weeks ? now + p.weeks * 7 * 86400 : null;
+  const updated = db.setPlan(u.id, target, p.credits, expires, now);
   db.setOrderStatus(order.id, 'paid');
   res.json({ ok: true, user: publicUser(updated), plan: target });
 });
