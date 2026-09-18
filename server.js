@@ -5,6 +5,7 @@
  */
 'use strict';
 const path = require('path');
+const https = require('https');
 const express = require('express');
 const session = require('express-session');
 const crypto = require('crypto');
@@ -53,9 +54,12 @@ const LANGUAGES = [
   { code: 'sat-IN', name: 'ᱥᱟᱱᱛᱟᱲᱤ — Santali' },
   { code: 'ar-SA', name: 'العربية — Arabic' }, { code: 'es-ES', name: 'Español — Spanish' },
   { code: 'fr-FR', name: 'Français — French' }, { code: 'de-DE', name: 'Deutsch — German' },
-  { code: 'pt-BR', name: 'Português — Portuguese' }, { code: 'it-IT', name: 'Italiano — Italian' },
-  { code: 'ru-RU', name: 'Русский — Russian' }, { code: 'zh-CN', name: '中文 — Chinese (Simplified)' },
-  { code: 'ja-JP', name: '日本語 — Japanese' }, { code: 'ko-KR', name: '한국어 — Korean' },
+  { code: 'pt-BR', name: 'Português — Portuguese' },
+  { code: 'it-IT', name: 'Italiano — Italian' },
+  { code: 'ru-RU', name: 'Русский — Russian' },
+  { code: 'zh-CN', name: '中文 — Chinese (Simplified)' },
+  { code: 'ja-JP', name: '日本語 — Japanese' },
+  { code: 'ko-KR', name: '한국어 — Korean' },
   { code: 'id-ID', name: 'Bahasa Indonesia' }, { code: 'ms-MY', name: 'Bahasa Melayu' },
   { code: 'tr-TR', name: 'Türkçe — Turkish' }, { code: 'fa-IR', name: 'فارسی — Persian' },
   { code: 'vi-VN', name: 'Tiếng Việt — Vietnamese' }, { code: 'th-TH', name: 'ไทย — Thai' },
@@ -64,8 +68,10 @@ const LANGUAGES = [
   { code: 'ro-RO', name: 'Română — Romanian' }, { code: 'el-GR', name: 'Ελληνικά — Greek' },
   { code: 'he-IL', name: 'עברית — Hebrew' }, { code: 'sw-KE', name: 'Kiswahili — Swahili' },
   { code: 'ha-NG', name: 'Hausa' }, { code: 'cs-CZ', name: 'Čeština — Czech' },
-  { code: 'hu-HU', name: 'Magyar — Hungarian' }, { code: 'sv-SE', name: 'Svenska — Swedish' },
-  { code: 'no-NO', name: 'Norsk — Norwegian' }, { code: 'da-DK', name: 'Dansk — Danish' },
+  { code: 'hu-HU', name: 'Magyar — Hungarian' },
+  { code: 'sv-SE', name: 'Svenska — Swedish' },
+  { code: 'no-NO', name: 'Norsk — Norwegian' },
+  { code: 'da-DK', name: 'Dansk — Danish' },
   { code: 'fi-FI', name: 'Suomi — Finnish' },
 ];
 
@@ -241,10 +247,17 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     db.addMessage(chat.id, 'assistant', result.text);
     db.touchChat(chat.id);
 
+    // In report mode the exchange is also saved as a reusable report.
+    let reportId = null;
+    if (mode === 'report') {
+      const saved = db.createReport(u.id, body.replace(/\s+/g, ' ').slice(0, 60) || 'Report', body, result.text);
+      reportId = saved ? saved.id : null;
+    }
+
     const credits = db.deductCredits(u.id, cost);
     res.json({
       ok: true, chatId: chat.id, reply: result.text,
-      provider: result.provider, credits, emergency,
+      provider: result.provider, credits, emergency, reportId,
     });
   } catch (e) {
     console.error('[chat] ' + e.message);
@@ -271,6 +284,254 @@ app.post('/api/admin/plan', requireAuth, (req, res) => {
   if (!p) return res.status(400).json({ error: 'Unknown plan: ' + plan });
   const updated = db.setPlan(target.id, plan, p.credits);
   res.json({ ok: true, user: publicUser(updated) });
+});
+
+/* ------------------------------ dashboard ------------------------- */
+app.get('/api/dashboard', requireAuth, (req, res) => {
+  const u = currentUser(req);
+  res.json({
+    user: publicUser(u),
+    stats: db.userStats(u.id),
+    recentChats: db.listChats(u.id).slice(0, 5),
+    recentReports: db.listReports(u.id).slice(0, 5),
+  });
+});
+
+/* ------------------------------ reports --------------------------- */
+app.get('/api/reports', requireAuth, (req, res) => {
+  res.json({ reports: db.listReports(currentUser(req).id) });
+});
+
+app.get('/api/reports/:id', requireAuth, (req, res) => {
+  const r = db.getReport(Number(req.params.id), currentUser(req).id);
+  if (!r) return res.status(404).json({ error: 'Report not found.' });
+  res.json({ report: r });
+});
+
+app.delete('/api/reports/:id', requireAuth, (req, res) => {
+  res.json({ ok: db.deleteReport(Number(req.params.id), currentUser(req).id) });
+});
+
+/* ------------------------------ coupons --------------------------- */
+app.post('/api/coupon/redeem', requireAuth, (req, res) => {
+  const code = String((req.body || {}).code || '').trim();
+  if (!code) return res.status(400).json({ error: 'Enter a coupon code.' });
+  const c = db.findCoupon(code);
+  if (!c) return res.status(404).json({ error: 'Invalid or expired coupon code.' });
+  if (c.credits > 0) {
+    const u = currentUser(req);
+    const fresh = db.getUser(u.id);
+    const updated = db.setPlan(fresh.id, fresh.plan, fresh.credits + c.credits);
+    return res.json({ ok: true, message: 'Coupon applied! +' + c.credits + ' credits added.', credits: updated.credits, percentOff: 0 });
+  }
+  if (c.percent_off > 0) {
+    return res.json({ ok: true, message: c.percent_off + '% off will be applied at checkout.', percentOff: c.percent_off });
+  }
+  res.status(400).json({ error: 'This coupon has no benefit.' });
+});
+
+/* ------------------------------ payments -------------------------- */
+function rzpRequest(method, apiPath, body) {
+  return new Promise((resolve, reject) => {
+    const auth = Buffer.from(process.env.RAZORPAY_KEY_ID + ':' + process.env.RAZORPAY_KEY_SECRET).toString('base64');
+    const data = JSON.stringify(body || {});
+    const req = https.request({
+      hostname: 'api.razorpay.com', path: apiPath, method,
+      headers: {
+        Authorization: 'Basic ' + auth,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data),
+      },
+      timeout: 20000,
+    }, (res) => {
+      let buf = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => { buf += c; });
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(buf);
+          res.statusCode < 300 ? resolve(json) : reject(new Error((json.error && json.error.description) || ('Razorpay HTTP ' + res.statusCode)));
+        } catch (e) { reject(new Error('Razorpay returned invalid JSON')); }
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('Razorpay request timed out')));
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+app.post('/api/payment/create-order', requireAuth, async (req, res) => {
+  try {
+    const u = currentUser(req);
+    const { plan, coupon } = req.body || {};
+    const p = PLANS[plan];
+    if (!p || !p.priceInr) return res.status(400).json({ error: 'Choose the Plus or Pro plan to pay.' });
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      return res.status(503).json({ error: 'Payments are not configured yet. Contact the administrator to upgrade your plan.' });
+    }
+    let percentOff = 0;
+    let couponCode = null;
+    if (coupon) {
+      const c = db.findCoupon(coupon);
+      if (c && c.percent_off > 0) { percentOff = c.percent_off; couponCode = c.code; }
+    }
+    const amount = Math.round(p.priceInr * 100 * (1 - percentOff / 100)); // paise
+    const rzp = await rzpRequest('POST', '/v1/orders', {
+      amount, currency: 'INR', receipt: 'medi-' + Date.now(), notes: { username: u.username, plan },
+    });
+    db.createOrder(u.id, plan, amount, couponCode, rzp.id);
+    res.json({
+      ok: true, plan, amount, percentOff,
+      keyId: process.env.RAZORPAY_KEY_ID,
+      orderId: rzp.id, currency: 'INR',
+    });
+  } catch (e) {
+    console.error('[payment] ' + e.message);
+    res.status(502).json({ error: 'Could not create payment order: ' + e.message });
+  }
+});
+
+app.post('/api/payment/verify', requireAuth, (req, res) => {
+  const u = currentUser(req);
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan } = req.body || {};
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    return res.status(400).json({ error: 'Missing payment verification fields.' });
+  }
+  const order = db.getOrderByRzp(razorpay_order_id);
+  if (!order || order.user_id !== u.id) return res.status(404).json({ error: 'Order not found.' });
+  const expected = crypto
+    .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+    .update(razorpay_order_id + '|' + razorpay_payment_id)
+    .digest('hex');
+  if (expected !== razorpay_signature) {
+    db.setOrderStatus(order.id, 'tampered');
+    return res.status(400).json({ error: 'Payment verification failed. If money was deducted it will be auto-refunded by Razorpay.' });
+  }
+  const target = order.plan || plan;
+  const p = PLANS[target];
+  if (!p) return res.status(400).json({ error: 'Unknown plan on order.' });
+  const updated = db.setPlan(u.id, target, p.credits);
+  db.setOrderStatus(order.id, 'paid');
+  res.json({ ok: true, user: publicUser(updated), plan: target });
+});
+
+/* ------------------------------ problems -------------------------- */
+app.post('/api/report-problem', requireAuth, (req, res) => {
+  const u = currentUser(req);
+  const { subject, message } = req.body || {};
+  const s = String(subject || '').trim();
+  const m = String(message || '').trim();
+  if (!s || !m) return res.status(400).json({ error: 'Subject and message are required.' });
+  db.createProblem(u.id, s, m);
+  res.json({ ok: true, message: 'Thank you! Your report was sent to the team.' });
+});
+
+/* ------------------------------ admin extras ---------------------- */
+app.get('/api/admin/problems', requireAuth, (req, res) => {
+  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
+  res.json({ problems: db.listProblems() });
+});
+
+app.post('/api/admin/problems/:id', requireAuth, (req, res) => {
+  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
+  const status = ['open', 'closed'].includes((req.body || {}).status) ? req.body.status : 'open';
+  res.json({ ok: db.setProblemStatus(Number(req.params.id), status) });
+});
+
+app.get('/api/admin/knowledge', requireAuth, (req, res) => {
+  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
+  res.json({ topics: db.listKB() });
+});
+
+app.post('/api/admin/knowledge', requireAuth, (req, res) => {
+  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
+  const { topic, symptoms, summary, advice, severity } = req.body || {};
+  if (!topic || !symptoms || !summary || !advice) {
+    return res.status(400).json({ error: 'Topic, symptoms, summary and advice are required.' });
+  }
+  const sev = ['self-care', 'see-doctor', 'emergency'].includes(severity) ? severity : 'self-care';
+  const ok = db.addKB(topic, symptoms, summary, advice, sev);
+  ok ? res.json({ ok: true }) : res.status(400).json({ error: 'Could not add topic.' });
+});
+
+app.delete('/api/admin/knowledge/:id', requireAuth, (req, res) => {
+  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
+  res.json({ ok: db.deleteKB(Number(req.params.id)) });
+});
+
+app.get('/api/admin/coupons', requireAuth, (req, res) => {
+  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
+  res.json({ coupons: db.listCoupons() });
+});
+
+app.post('/api/admin/coupons', requireAuth, (req, res) => {
+  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
+  const { code, percentOff, credits } = req.body || {};
+  if (!code) return res.status(400).json({ error: 'Coupon code is required.' });
+  const ok = db.createCoupon(code, Number(percentOff) || 0, Number(credits) || 0);
+  ok ? res.json({ ok: true }) : res.status(400).json({ error: 'Coupon already exists.' });
+});
+
+app.delete('/api/admin/coupons/:id', requireAuth, (req, res) => {
+  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
+  res.json({ ok: db.deleteCoupon(Number(req.params.id)) });
+});
+
+app.get('/api/admin/sync-status', requireAuth, (req, res) => {
+  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
+  res.json({
+    uptime: Math.round(process.uptime()),
+    providers: ai.available(),
+    users: db.userCount(),
+    knowledge: db.listKB().length,
+    payments: !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
+    whatsapp: !!process.env.WHATSAPP_TOKEN,
+  });
+});
+
+/* ------------------------------ whatsapp webhook ------------------ */
+app.get('/whatsapp/webhook', (req, res) => {
+  // Meta webhook verification handshake
+  if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === (process.env.WHATSAPP_VERIFY_TOKEN || 'medi-ai')) {
+    return res.status(200).send(req.query['hub.challenge']);
+  }
+  res.sendStatus(403);
+});
+
+app.post('/whatsapp/webhook', express.json(), async (req, res) => {
+  res.sendStatus(200); // acknowledge immediately
+  try {
+    if (!process.env.WHATSAPP_TOKEN || !process.env.WHATSAPP_PHONE_ID) return;
+    const value = req.body && req.body.entry && req.body.entry[0] && req.body.entry[0].changes &&
+                  req.body.entry[0].changes[0] && req.body.entry[0].changes[0].value;
+    const msg = value && value.messages && value.messages[0];
+    if (!msg || msg.type !== 'text') return;
+    const from = msg.from;
+    const text = String(msg.text && msg.text.body || '').slice(0, 2000);
+    if (!text) return;
+    const emergency = detectEmergency(text);
+    const kbHits = db.searchKB(text, 3);
+    const system = buildSystemPrompt({ mode: 'chat', languageName: 'English', kbHits, emergency });
+    const result = await ai.chat(null, [{ role: 'system', content: system }, { role: 'user', content: text }]);
+    const reply = String(result.text).slice(0, 4000);
+    await new Promise((resolve) => {
+      const data = JSON.stringify({ messaging_product: 'whatsapp', to: from, text: { body: reply } });
+      const r = https.request({
+        hostname: 'graph.facebook.com',
+        path: '/v21.0/' + process.env.WHATSAPP_PHONE_ID + '/messages',
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + process.env.WHATSAPP_TOKEN, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
+        timeout: 20000,
+      }, (res2) => { res2.resume(); res2.on('end', resolve); });
+      r.on('timeout', () => { r.destroy(); resolve(); });
+      r.on('error', () => resolve());
+      r.write(data);
+      r.end();
+    });
+  } catch (e) {
+    console.error('[whatsapp] ' + e.message);
+  }
 });
 
 /* ------------------------------ static ----------------------------- */
