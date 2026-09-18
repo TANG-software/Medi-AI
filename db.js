@@ -19,10 +19,12 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT UNIQUE NOT NULL COLLATE NOCASE,
   passhash TEXT NOT NULL,
   plan TEXT NOT NULL DEFAULT 'free',
-  credits INTEGER NOT NULL DEFAULT 50,
+  credits INTEGER NOT NULL DEFAULT 5,
   language TEXT NOT NULL DEFAULT 'en-IN',
   provider TEXT DEFAULT NULL,
   is_admin INTEGER NOT NULL DEFAULT 0,
+  plan_expires INTEGER,
+  last_refill INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS chats (
@@ -86,6 +88,26 @@ CREATE TABLE IF NOT EXISTS orders (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `);
+
+/* Migration for databases created before v1.3 */
+try { db.exec('ALTER TABLE users ADD COLUMN plan_expires INTEGER'); } catch (e) {}
+try { db.exec('ALTER TABLE users ADD COLUMN last_refill INTEGER'); } catch (e) {}
+
+/* ------------------------------ plans ------------------------------
+   free : 5 credits refreshed every 14 days, 2 engines per answer
+   plus : ₹49 one-time 15 credits (10+5), 3 engines, no renewal
+   plus2: ₹99 one-time 32 credits (20+12), 4 engines, no renewal
+   pro  : ₹799  — 30 credits refilled weekly for 4 weeks, all engines
+   pro2 : ₹1999 — 79 credits refilled weekly for 4 weeks, all engines
+   elite: ₹4999 — 100 credits refilled weekly for 1 year, all engines */
+const PLANS = {
+  free:  { label: 'Free',    credits: 5,   priceInr: 0,    engines: 2,  renewDays: 14 },
+  plus:  { label: 'Plus',     credits: 15,  priceInr: 49,   engines: 3,  bonus: '10 + 5 bonus credits' },
+  plus2: { label: 'Plus+',   credits: 32,  priceInr: 99,   engines: 4,  bonus: '20 + 12 bonus credits' },
+  pro:   { label: 'Pro',     credits: 30,  priceInr: 799,  engines: 10, renewDays: 7, weeks: 4 },
+  pro2:  { label: 'Pro+',    credits: 79,  priceInr: 1999, engines: 10, renewDays: 7, weeks: 4 },
+  elite: { label: 'Elite',   credits: 100, priceInr: 4999, engines: 10, renewDays: 7, weeks: 52 },
+};
 
 /* ------------------------------------------------------------------ */
 /* Medical knowledge base seed — general public-health information.   */
@@ -151,9 +173,9 @@ const qUsers = {
   byId: db.prepare('SELECT * FROM users WHERE id = ?'),
   byName: db.prepare('SELECT * FROM users WHERE username = ?'),
   count: db.prepare('SELECT COUNT(*) AS c FROM users'),
-  insert: db.prepare("INSERT INTO users (username, passhash, plan, credits, is_admin) VALUES (?,?,?,?,?)"),
+  insert: db.prepare("INSERT INTO users (username, passhash, plan, credits, is_admin, last_refill) VALUES (?,?,?,?,?,?)"),
   credits: db.prepare('UPDATE users SET credits = credits - ? WHERE id = ? AND credits >= ?'),
-  setPlan: db.prepare('UPDATE users SET plan = ?, credits = ? WHERE id = ?'),
+  setPlan: db.prepare('UPDATE users SET plan = ?, credits = ?, plan_expires = ?, last_refill = ? WHERE id = ?'),
   setPrefs: db.prepare('UPDATE users SET language = ?, provider = ? WHERE id = ?'),
 };
 
@@ -161,19 +183,58 @@ function userCount() { return qUsers.count.get().c; }
 function userExists(username) { return !!qUsers.byName.get(String(username).trim()); }
 function createUser(username, password, isAdmin) {
   const hash = bcrypt.hashSync(String(password), 10);
-  const plan = 'free', credits = 50;
-  const info = qUsers.insert.run(String(username).trim(), hash, plan, credits, isAdmin ? 1 : 0);
+  const plan = 'free', credits = PLANS.free.credits;
+  const info = qUsers.insert.run(String(username).trim(), hash, plan, credits, isAdmin ? 1 : 0, Math.floor(Date.now() / 1000));
   return qUsers.byId.get(info.lastInsertRowid);
 }
 function getUserByUsername(username) { return qUsers.byName.get(String(username).trim()) || null; }
-function getUser(id) { return qUsers.byId.get(id) || null; }
+function getUser(id) { return applyPlanCycle(qUsers.byId.get(id) || null); }
 function verifyPassword(user, password) { return bcrypt.compareSync(String(password), user.passhash); }
 function deductCredits(id, amount) {
   qUsers.credits.run(amount, id, amount);
   return qUsers.byId.get(id).credits;
 }
-function setPlan(id, plan, credits) { qUsers.setPlan.run(plan, credits, id); return qUsers.byId.get(id); }
+function setPlan(id, plan, credits, expiresAt, lastRefill) {
+  const cur = qUsers.byId.get(id) || {};
+  qUsers.setPlan.run(
+    plan,
+    credits,
+    expiresAt === undefined ? (cur.plan_expires || null) : (expiresAt || null),
+    lastRefill === undefined ? (cur.last_refill || null) : (lastRefill || null),
+    id
+  );
+  return qUsers.byId.get(id);
+}
 function setPrefs(id, language, provider) { qUsers.setPrefs.run(language, provider, id); return qUsers.byId.get(id); }
+
+/* ------------------------- plan cycle (renewals) -------------------------
+   Called on every getUser: expires finished subscriptions and tops up
+   credits on schedule (weekly for paid Pro tiers, fortnightly for Free). */
+const qCycle = db.prepare('UPDATE users SET plan = ?, credits = ?, last_refill = ?, plan_expires = ? WHERE id = ?');
+function applyPlanCycle(u) {
+  if (!u) return u;
+  const now = Math.floor(Date.now() / 1000);
+  let plan = u.plan, credits = u.credits;
+  let last = u.last_refill || now;
+  let expires = u.plan_expires || 0;
+  let dirty = false;
+  if (expires && now > expires) {
+    plan = 'free'; expires = 0; last = now; dirty = true;
+  }
+  const p = PLANS[plan] || PLANS.free;
+  if (p.renewDays) {
+    const period = p.renewDays * 86400;
+    if (now - last >= period) {
+      const cycles = Math.floor((now - last) / period);
+      last += cycles * period;
+      if (credits < p.credits) credits = p.credits;
+      dirty = true;
+    }
+  }
+  if (!dirty) return u;
+  qCycle.run(plan, credits, last, expires || null, u.id);
+  return Object.assign({}, u, { plan, credits, last_refill: last, plan_expires: expires || null });
+}
 
 /* ------------------------- chats ------------------------- */
 const qChats = {
@@ -306,6 +367,7 @@ function deleteKB(id) { return !!qKb.del.run(id).changes; }
 
 module.exports = {
   db,
+  PLANS,
   userCount, userExists, createUser, getUserByUsername, getUser, verifyPassword,
   deductCredits, setPlan, setPrefs,
   listChats, getChat, createChat, getMessages, getRecentMessages, addMessage,
