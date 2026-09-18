@@ -56,6 +56,33 @@ function postJSON(urlStr, body, headers = {}) {
   });
 }
 
+/** GET JSON, resolve parsed JSON. */
+function getJSON(urlStr, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(urlStr);
+    const mod = u.protocol === 'http:' ? http : https;
+    const req = mod.request({
+      hostname: u.hostname,
+      port: u.port || (u.protocol === 'http:' ? 80 : 443),
+      path: u.pathname + u.search,
+      method: 'GET',
+      headers: Object.assign({}, headers, { Accept: 'application/json' }),
+      timeout: 15000,
+    }, (res) => {
+      let buf = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => { buf += c; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(buf)); }
+        catch (e) { reject(new Error('Provider returned invalid JSON')); }
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('Request timed out')));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 const PROVIDERS = [
   { id: 'groq',       label: 'Groq',       model: 'llama-3.3-70b-versatile',               url: 'https://api.groq.com/openai/v1/chat/completions',          keyEnv: 'GROQ_API_KEY',       type: 'openai' },
   { id: 'sarvam',     label: 'Sarvam',     model: 'sarvam-m',                              url: 'https://api.sarvam.ai/v1/chat/completions',                keyEnv: 'SARVAM_API_KEY',     type: 'openai' },
@@ -81,17 +108,56 @@ function byId(id) { return PROVIDERS.find((p) => p.id === id) || null; }
 /** Model can be overridden per provider via e.g. GROQ_MODEL=... */
 function modelOf(p) { return process.env[p.id.toUpperCase() + '_MODEL'] || p.model; }
 
-async function callOpenAI(p, messages) {
-  const res = await postJSON(p.url, {
-    model: modelOf(p),
-    messages,
-    temperature: 0.4,
-    max_tokens: 1400,
-  }, { Authorization: 'Bearer ' + process.env[p.keyEnv] });
+/* ---------- model auto-discovery ----------
+   Providers retire old model names over time (e.g. Groq 404s on
+   llama-3.3-70b-versatile). When that happens we ask the provider's
+   /models endpoint what is available and switch automatically. */
+const discoveredModels = {};
+const NOT_A_CHAT_MODEL = /whisper|tts|guard|embed|moderation|safety|flux|sdxl|stable.?diffusion|distil|rerank|ocr/i;
+const PREFERRED_MODEL = /llama|gpt-oss|qwen|kimi|deepseek|mixtral|gemma|sarvam|command|mistral|gpt|claude/i;
+
+async function discoverModel(p) {
+  try {
+    const base = p.url.replace(/\/chat\/completions$/, '');
+    const res = await getJSON(base + '/models', { Authorization: 'Bearer ' + process.env[p.keyEnv] });
+    const ids = (res.data || []).map((m) => m.id).filter(Boolean);
+    const chat = ids.filter((id) => !NOT_A_CHAT_MODEL.test(id));
+    const pick = chat.find((id) => PREFERRED_MODEL.test(id)) || chat[0] || ids[0];
+    if (pick) {
+      discoveredModels[p.id] = pick;
+      console.error('[ai] ' + p.label + ': using model "' + pick + '"');
+    }
+    return pick || null;
+  } catch (e) {
+    console.error('[ai] ' + p.label + ': model discovery failed: ' + e.message);
+    return null;
+  }
+}
+
+function extractContent(p, res) {
   const text = res && res.choices && res.choices[0] && res.choices[0].message &&
                res.choices[0].message.content;
   if (!text) throw new Error(p.label + ' returned an empty response');
   return text;
+}
+
+async function callOpenAI(p, messages) {
+  const attempt = (model) => postJSON(p.url, {
+    model,
+    messages,
+    temperature: 0.4,
+    max_tokens: 1400,
+  }, { Authorization: 'Bearer ' + process.env[p.keyEnv] });
+  let model = discoveredModels[p.id] || modelOf(p);
+  try {
+    return extractContent(p, await attempt(model));
+  } catch (e) {
+    const modelGone = /404|does not exist|not found|decommission|no longer/i.test(e.message);
+    if (!modelGone) throw e;
+    const alt = await discoverModel(p);
+    if (!alt || alt === model) throw e;
+    return extractContent(p, await attempt(alt));
+  }
 }
 
 async function callGemini(p, messages) {
