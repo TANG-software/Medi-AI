@@ -1,97 +1,24 @@
 /**
- * Medi AI — database layer (SQLite)
- * Users, chats, messages, and a seeded medical knowledge base used
- * to ground AI answers with verified context.
+ * Medi AI — database layer (PostgreSQL)
+ * Works with any Postgres: Neon (recommended, free), Supabase, Railway…
+ * Set DATABASE_URL in the environment. All data survives redeploys.
  */
 'use strict';
-const fs = require('fs');
-const path = require('path');
-const Database = require('better-sqlite3');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
-const db = new Database(path.join(__dirname, 'data', 'medi.db'));
-db.pragma('journal_mode = WAL');
+/* Neon and other hosted Postgres require SSL; local test servers can opt out
+   with sslmode=disable in the URL. */
+const NEEDS_SSL = !!process.env.DATABASE_URL && !/sslmode=disable/i.test(process.env.DATABASE_URL);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: NEEDS_SSL ? { rejectUnauthorized: false } : undefined,
+  max: 10,
+  idleTimeoutMillis: 30000,
+});
 
-db.exec(`
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  username TEXT UNIQUE NOT NULL COLLATE NOCASE,
-  passhash TEXT NOT NULL,
-  plan TEXT NOT NULL DEFAULT 'free',
-  credits INTEGER NOT NULL DEFAULT 5,
-  language TEXT NOT NULL DEFAULT 'en-IN',
-  provider TEXT DEFAULT NULL,
-  is_admin INTEGER NOT NULL DEFAULT 0,
-  plan_expires INTEGER,
-  last_refill INTEGER,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS chats (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  title TEXT NOT NULL,
-  mode TEXT NOT NULL DEFAULT 'chat',
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS messages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  chat_id INTEGER NOT NULL REFERENCES chats(id),
-  role TEXT NOT NULL,
-  content TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_chats_user ON chats(user_id, updated_at DESC);
-CREATE INDEX IF NOT EXISTS idx_msgs_chat ON messages(chat_id, id ASC);
-CREATE TABLE IF NOT EXISTS kb (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  topic TEXT NOT NULL,
-  symptoms TEXT NOT NULL,
-  summary TEXT NOT NULL,
-  advice TEXT NOT NULL,
-  severity TEXT NOT NULL DEFAULT 'self-care'
-);
-CREATE TABLE IF NOT EXISTS reports (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  title TEXT NOT NULL,
-  extracted TEXT NOT NULL,
-  analysis TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_reports_user ON reports(user_id, id DESC);
-CREATE TABLE IF NOT EXISTS coupons (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  code TEXT UNIQUE NOT NULL COLLATE NOCASE,
-  percent_off INTEGER NOT NULL DEFAULT 0,
-  credits INTEGER NOT NULL DEFAULT 0,
-  active INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS problems (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER REFERENCES users(id),
-  subject TEXT NOT NULL,
-  message TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'open',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS orders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  plan TEXT NOT NULL,
-  amount INTEGER NOT NULL,
-  coupon TEXT,
-  status TEXT NOT NULL DEFAULT 'created',
-  razorpay_order_id TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-`);
-
-/* Migration for databases created before v1.3 */
-try { db.exec('ALTER TABLE users ADD COLUMN plan_expires INTEGER'); } catch (e) {}
-try { db.exec('ALTER TABLE users ADD COLUMN last_refill INTEGER'); } catch (e) {}
+async function q(text, params) { const r = await pool.query(text, params || []); return r.rows; }
+async function q1(text, params) { const r = await pool.query(text, params || []); return r.rows[0] || null; }
 
 /* ------------------------------ plans ------------------------------
    free : 5 credits refreshed every 14 days, 2 engines per answer
@@ -102,12 +29,92 @@ try { db.exec('ALTER TABLE users ADD COLUMN last_refill INTEGER'); } catch (e) {
    elite: ₹4999 — 100 credits refilled weekly for 1 year, all engines */
 const PLANS = {
   free:  { label: 'Free',    credits: 5,   priceInr: 0,    engines: 2,  renewDays: 14 },
-  plus:  { label: 'Plus',     credits: 15,  priceInr: 49,   engines: 3,  bonus: '10 + 5 bonus credits' },
+  plus:  { label: 'Plus',    credits: 15,  priceInr: 49,   engines: 3,  bonus: '10 + 5 bonus credits' },
   plus2: { label: 'Plus+',   credits: 32,  priceInr: 99,   engines: 4,  bonus: '20 + 12 bonus credits' },
   pro:   { label: 'Pro',     credits: 30,  priceInr: 799,  engines: 10, renewDays: 7, weeks: 4 },
   pro2:  { label: 'Pro+',    credits: 79,  priceInr: 1999, engines: 10, renewDays: 7, weeks: 4 },
   elite: { label: 'Elite',   credits: 100, priceInr: 4999, engines: 10, renewDays: 7, weeks: 52 },
 };
+
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  username TEXT NOT NULL,
+  email TEXT,
+  passhash TEXT NOT NULL,
+  plan TEXT NOT NULL DEFAULT 'free',
+  credits INTEGER NOT NULL DEFAULT 5,
+  language TEXT NOT NULL DEFAULT 'en-IN',
+  provider TEXT DEFAULT NULL,
+  is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+  plan_expires BIGINT,
+  last_refill BIGINT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_uname_ci ON users (LOWER(username));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_ci ON users (LOWER(email)) WHERE email IS NOT NULL;
+CREATE TABLE IF NOT EXISTS chats (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  mode TEXT NOT NULL DEFAULT 'chat',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_chats_user ON chats(user_id);
+CREATE TABLE IF NOT EXISTS messages (
+  id SERIAL PRIMARY KEY,
+  chat_id INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_msgs_chat ON messages(chat_id);
+CREATE TABLE IF NOT EXISTS kb (
+  id SERIAL PRIMARY KEY,
+  topic TEXT NOT NULL,
+  symptoms TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  advice TEXT NOT NULL,
+  severity TEXT NOT NULL DEFAULT 'self-care'
+);
+CREATE TABLE IF NOT EXISTS reports (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  extracted TEXT NOT NULL,
+  analysis TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_reports_user ON reports(user_id);
+CREATE TABLE IF NOT EXISTS coupons (
+  id SERIAL PRIMARY KEY,
+  code TEXT NOT NULL,
+  percent_off INTEGER NOT NULL DEFAULT 0,
+  credits INTEGER NOT NULL DEFAULT 0,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_coupons_code_ci ON coupons (LOWER(code));
+CREATE TABLE IF NOT EXISTS problems (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  subject TEXT NOT NULL,
+  message TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS orders (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  coupon TEXT,
+  status TEXT NOT NULL DEFAULT 'created',
+  razorpay_order_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+`;
 
 /* ------------------------------------------------------------------ */
 /* Medical knowledge base seed — general public-health information.   */
@@ -160,58 +167,88 @@ const KB_SEED = [
   ['Child fever (parents guide)', 'child fever baby fever kid high temperature febrile', "In babies under 3 months ANY fever is an emergency. In older children most fevers are viral.", 'Light clothing, fluids, paracetamol syrup by weight. Emergency if under 3 months, non-stop crying, limp, rash that does not fade on pressing, or seizure.', 'see-doctor']
 ];
 
-const count = db.prepare('SELECT COUNT(*) AS c FROM kb').get().c;
-if (count === 0) {
-  const ins = db.prepare('INSERT INTO kb (topic, symptoms, summary, advice, severity) VALUES (?,?,?,?,?)');
-  const tx = db.transaction(() => { for (const e of KB_SEED) ins.run(e[0], e[1], e[2], e[3], e[4]); });
-  tx();
-  console.log('[db] Seeded medical knowledge base with', KB_SEED.length, 'topics');
+async function init() {
+  await pool.query(SCHEMA);
+  /* migrations for older databases */
+  try { await pool.query('ALTER TABLE users ADD COLUMN email TEXT'); } catch (e) {}
+  const c = await q1('SELECT COUNT(*)::int AS c FROM kb');
+  if (!c || c.c === 0) {
+    for (const e of KB_SEED) {
+      await pool.query('INSERT INTO kb (topic, symptoms, summary, advice, severity) VALUES ($1,$2,$3,$4,$5)', e);
+    }
+    console.log('[db] Seeded medical knowledge base with', KB_SEED.length, 'topics');
+  }
 }
 
 /* ------------------------- users ------------------------- */
-const qUsers = {
-  byId: db.prepare('SELECT * FROM users WHERE id = ?'),
-  byName: db.prepare('SELECT * FROM users WHERE username = ?'),
-  count: db.prepare('SELECT COUNT(*) AS c FROM users'),
-  insert: db.prepare("INSERT INTO users (username, passhash, plan, credits, is_admin, last_refill) VALUES (?,?,?,?,?,?)"),
-  credits: db.prepare('UPDATE users SET credits = credits - ? WHERE id = ? AND credits >= ?'),
-  setPlan: db.prepare('UPDATE users SET plan = ?, credits = ?, plan_expires = ?, last_refill = ? WHERE id = ?'),
-  setPrefs: db.prepare('UPDATE users SET language = ?, provider = ? WHERE id = ?'),
-};
+async function userCount() { const r = await q1('SELECT COUNT(*)::int AS c FROM users'); return r.c; }
+async function userExists(username) { return !!(await q1('SELECT 1 FROM users WHERE LOWER(username) = LOWER($1)', [String(username).trim()])); }
+async function emailExists(email) { return !!(await q1('SELECT 1 FROM users WHERE email IS NOT NULL AND LOWER(email) = LOWER($1)', [String(email).trim()])); }
 
-function userCount() { return qUsers.count.get().c; }
-function userExists(username) { return !!qUsers.byName.get(String(username).trim()); }
-function createUser(username, password, isAdmin) {
+async function createUser(username, email, password, isAdmin) {
   const hash = bcrypt.hashSync(String(password), 10);
-  const plan = 'free', credits = PLANS.free.credits;
-  const info = qUsers.insert.run(String(username).trim(), hash, plan, credits, isAdmin ? 1 : 0, Math.floor(Date.now() / 1000));
-  return qUsers.byId.get(info.lastInsertRowid);
-}
-function getUserByUsername(username) { return qUsers.byName.get(String(username).trim()) || null; }
-function getUser(id) { return applyPlanCycle(qUsers.byId.get(id) || null); }
-function verifyPassword(user, password) { return bcrypt.compareSync(String(password), user.passhash); }
-function deductCredits(id, amount) {
-  qUsers.credits.run(amount, id, amount);
-  return qUsers.byId.get(id).credits;
-}
-function setPlan(id, plan, credits, expiresAt, lastRefill) {
-  const cur = qUsers.byId.get(id) || {};
-  qUsers.setPlan.run(
-    plan,
-    credits,
-    expiresAt === undefined ? (cur.plan_expires || null) : (expiresAt || null),
-    lastRefill === undefined ? (cur.last_refill || null) : (lastRefill || null),
-    id
+  const rows = await q(
+    'INSERT INTO users (username, email, passhash, plan, credits, is_admin, last_refill) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+    [String(username).trim(), email ? String(email).trim().toLowerCase() : null, hash, 'free', PLANS.free.credits, !!isAdmin, Math.floor(Date.now() / 1000)]
   );
-  return qUsers.byId.get(id);
+  return rows[0];
 }
-function setPrefs(id, language, provider) { qUsers.setPrefs.run(language, provider, id); return qUsers.byId.get(id); }
+
+async function getUserByUsername(username) {
+  return q1('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [String(username).trim()]);
+}
+async function getUserByEmail(email) {
+  return q1('SELECT * FROM users WHERE email IS NOT NULL AND LOWER(email) = LOWER($1)', [String(email).trim()]);
+}
+/* login by email OR username */
+async function getUserByIdentifier(identifier) {
+  const id = String(identifier || '').trim();
+  if (!id) return null;
+  return (await getUserByEmail(id)) || (await getUserByUsername(id));
+}
+
+async function getUser(id) {
+  const u = await q1('SELECT * FROM users WHERE id = $1', [id]);
+  return applyPlanCycle(u);
+}
+
+function verifyPassword(user, password) { return bcrypt.compareSync(String(password), user.passhash); }
+
+async function deductCredits(id, amount) {
+  const r = await q1('UPDATE users SET credits = credits - $1 WHERE id = $2 AND credits >= $1 RETURNING credits', [amount, id]);
+  if (r) return r.credits;
+  const u = await q1('SELECT credits FROM users WHERE id = $1', [id]);
+  return u ? u.credits : 0;
+}
+
+async function setPlan(id, plan, credits, expiresAt, lastRefill) {
+  const cur = (await q1('SELECT * FROM users WHERE id = $1', [id])) || {};
+  await pool.query(
+    'UPDATE users SET plan = $1, credits = $2, plan_expires = $3, last_refill = $4 WHERE id = $5',
+    [
+      plan,
+      credits,
+      expiresAt === undefined ? (cur.plan_expires || null) : (expiresAt || null),
+      lastRefill === undefined ? (cur.last_refill || null) : (lastRefill || null),
+      id,
+    ]
+  );
+  return q1('SELECT * FROM users WHERE id = $1', [id]);
+}
+
+async function setPrefs(id, language, provider) {
+  await pool.query('UPDATE users SET language = $1, provider = $2 WHERE id = $3', [language, provider, id]);
+  return q1('SELECT * FROM users WHERE id = $1', [id]);
+}
+
+async function listUsersAdmin() {
+  return q('SELECT id, username, email, plan, credits, is_admin, to_char(created_at, \'YYYY-MM-DD\') AS created_at FROM users ORDER BY id DESC LIMIT 200');
+}
 
 /* ------------------------- plan cycle (renewals) -------------------------
    Called on every getUser: expires finished subscriptions and tops up
    credits on schedule (weekly for paid Pro tiers, fortnightly for Free). */
-const qCycle = db.prepare('UPDATE users SET plan = ?, credits = ?, last_refill = ?, plan_expires = ? WHERE id = ?');
-function applyPlanCycle(u) {
+async function applyPlanCycle(u) {
   if (!u) return u;
   const now = Math.floor(Date.now() / 1000);
   let plan = u.plan, credits = u.credits;
@@ -232,55 +269,53 @@ function applyPlanCycle(u) {
     }
   }
   if (!dirty) return u;
-  qCycle.run(plan, credits, last, expires || null, u.id);
+  await pool.query('UPDATE users SET plan = $1, credits = $2, last_refill = $3, plan_expires = $4 WHERE id = $5',
+    [plan, credits, last, expires || null, u.id]);
   return Object.assign({}, u, { plan, credits, last_refill: last, plan_expires: expires || null });
 }
 
 /* ------------------------- chats ------------------------- */
-const qChats = {
-  list: db.prepare('SELECT id, title, mode, updated_at FROM chats WHERE user_id = ? ORDER BY datetime(updated_at) DESC LIMIT 100'),
-  get: db.prepare('SELECT * FROM chats WHERE id = ? AND user_id = ?'),
-  create: db.prepare("INSERT INTO chats (user_id, title, mode) VALUES (?,?,?)"),
-  touch: db.prepare("UPDATE chats SET updated_at = datetime('now') WHERE id = ?"),
-  rename: db.prepare('UPDATE chats SET title = ? WHERE id = ? AND user_id = ?'),
-  del: db.prepare('DELETE FROM chats WHERE id = ? AND user_id = ?'),
-};
-const qMsgs = {
-  list: db.prepare('SELECT role, content FROM messages WHERE chat_id = ? ORDER BY id ASC'),
-  last: db.prepare('SELECT role, content FROM (SELECT * FROM messages WHERE chat_id = ? ORDER BY id DESC LIMIT ?) ORDER BY id ASC'),
-  add: db.prepare('INSERT INTO messages (chat_id, role, content) VALUES (?,?,?)'),
-  clear: db.prepare('DELETE FROM messages WHERE chat_id = ?'),
-};
-const delMsgsByChat = db.prepare('DELETE FROM messages WHERE chat_id IN (SELECT id FROM chats WHERE user_id = ?)');
-
-function listChats(userId) { return qChats.list.all(userId); }
-function getChat(id, userId) { return qChats.get.get(id, userId) || null; }
-function createChat(userId, title, mode) {
-  const info = qChats.create.run(userId, title.slice(0, 60) || 'New chat', mode || 'chat');
-  return qChats.get.get(info.lastInsertRowid, userId);
+async function listChats(userId) {
+  return q("SELECT id, title, mode, to_char(updated_at, 'YYYY-MM-DD HH24:MI') AS updated_at FROM chats WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 100", [userId]);
 }
-function getMessages(chatId) { return qMsgs.list.all(chatId); }
-function getRecentMessages(chatId, limit) { return qMsgs.last.all(chatId, limit); }
-function addMessage(chatId, role, content) { return qMsgs.add.run(chatId, role, content); }
-function touchChat(chatId) { qChats.touch.run(chatId); }
-function renameChat(id, userId, title) { qChats.rename.run(title.slice(0, 60), id, userId); }
-function deleteChat(id, userId) {
-  const chat = getChat(id, userId);
+async function getChat(id, userId) {
+  return q1('SELECT * FROM chats WHERE id = $1 AND user_id = $2', [id, userId]);
+}
+async function createChat(userId, title, mode) {
+  const rows = await q(
+    "INSERT INTO chats (user_id, title, mode) VALUES ($1,$2,$3) RETURNING *, to_char(created_at, 'YYYY-MM-DD HH24:MI') AS created_at",
+    [userId, String(title).slice(0, 60) || 'New chat', mode || 'chat']
+  );
+  return rows[0];
+}
+async function getMessages(chatId) {
+  return q('SELECT role, content FROM messages WHERE chat_id = $1 ORDER BY id ASC', [chatId]);
+}
+async function getRecentMessages(chatId, limit) {
+  return q('SELECT role, content FROM (SELECT * FROM messages WHERE chat_id = $1 ORDER BY id DESC LIMIT $2) t ORDER BY id ASC', [chatId, limit]);
+}
+async function addMessage(chatId, role, content) {
+  const r = await q1('INSERT INTO messages (chat_id, role, content) VALUES ($1,$2,$3) RETURNING id', [chatId, role, content]);
+  return r ? r.id : null;
+}
+async function touchChat(chatId) { await pool.query('UPDATE chats SET updated_at = now() WHERE id = $1', [chatId]); }
+async function deleteChat(id, userId) {
+  const chat = await getChat(id, userId);
   if (!chat) return false;
-  qMsgs.clear.run(id);
-  qChats.del.run(id, userId);
+  await pool.query('DELETE FROM chats WHERE id = $1 AND user_id = $2', [id, userId]); // messages cascade
   return true;
 }
 
 /* ------------------------- knowledge base ------------------------- */
-function searchKB(text, limit = 3) {
+async function searchKB(text, limit = 3) {
   const words = String(text).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2);
   if (!words.length) return [];
   const seen = new Map();
   for (const w of words) {
-    const hits = db.prepare(
-      "SELECT * FROM kb WHERE topic LIKE ? OR symptoms LIKE ? OR summary LIKE ? LIMIT 4"
-    ).all(`%${w}%`, `%${w}%`, `%${w}%`);
+    const hits = await q(
+      'SELECT * FROM kb WHERE topic ILIKE $1 OR symptoms ILIKE $1 OR summary ILIKE $1 LIMIT 4',
+      ['%' + w + '%']
+    );
     for (const h of hits) {
       if (!seen.has(h.id)) seen.set(h.id, { row: h, score: 0 });
       seen.get(h.id).score += 1;
@@ -290,88 +325,99 @@ function searchKB(text, limit = 3) {
 }
 
 /* ------------------------- reports ------------------------- */
-const qReports = {
-  list: db.prepare('SELECT id, title, created_at FROM reports WHERE user_id = ? ORDER BY id DESC LIMIT 100'),
-  get: db.prepare('SELECT * FROM reports WHERE id = ? AND user_id = ?'),
-  create: db.prepare('INSERT INTO reports (user_id, title, extracted, analysis) VALUES (?,?,?,?)'),
-  del: db.prepare('DELETE FROM reports WHERE id = ? AND user_id = ?'),
-  count: db.prepare('SELECT COUNT(*) AS c FROM reports WHERE user_id = ?'),
-};
-function listReports(userId) { return qReports.list.all(userId); }
-function getReport(id, userId) { return qReports.get.get(id, userId) || null; }
-function createReport(userId, title, extracted, analysis) {
-  const info = qReports.create.run(userId, String(title).slice(0, 80), extracted, analysis);
-  return qReports.get.get(info.lastInsertRowid, userId);
+async function listReports(userId) {
+  return q("SELECT id, title, to_char(created_at, 'YYYY-MM-DD HH24:MI') AS created_at FROM reports WHERE user_id = $1 ORDER BY id DESC LIMIT 100", [userId]);
 }
-function deleteReport(id, userId) { return !!qReports.del.run(id, userId).changes; }
+async function getReport(id, userId) {
+  return q1("SELECT *, to_char(created_at, 'YYYY-MM-DD HH24:MI') AS created_at FROM reports WHERE id = $1 AND user_id = $2", [id, userId]);
+}
+async function createReport(userId, title, extracted, analysis) {
+  const rows = await q(
+    "INSERT INTO reports (user_id, title, extracted, analysis) VALUES ($1,$2,$3,$4) RETURNING *, to_char(created_at, 'YYYY-MM-DD HH24:MI') AS created_at",
+    [userId, String(title).slice(0, 80), extracted, analysis]
+  );
+  return rows[0];
+}
+async function deleteReport(id, userId) {
+  const r = await q1('DELETE FROM reports WHERE id = $1 AND user_id = $2 RETURNING id', [id, userId]);
+  return !!r;
+}
 
 /* ------------------------- coupons ------------------------- */
-const qCoupons = {
-  find: db.prepare('SELECT * FROM coupons WHERE code = ? AND active = 1'),
-  list: db.prepare('SELECT * FROM coupons ORDER BY id DESC LIMIT 200'),
-  create: db.prepare('INSERT INTO coupons (code, percent_off, credits) VALUES (?,?,?)'),
-  del: db.prepare('DELETE FROM coupons WHERE id = ?'),
-};
-function findCoupon(code) { return qCoupons.find.get(String(code || '').trim()) || null; }
-function listCoupons() { return qCoupons.list.all(); }
-function createCoupon(code, percentOff, credits) {
-  try { qCoupons.create.run(String(code).trim().toUpperCase(), Math.max(0, Math.min(90, percentOff | 0)), Math.max(0, credits | 0)); return true; }
-  catch (e) { return false; }
+async function findCoupon(code) {
+  return q1('SELECT * FROM coupons WHERE LOWER(code) = LOWER($1) AND active = TRUE', [String(code || '').trim()]);
 }
-function deleteCoupon(id) { return !!qCoupons.del.run(id).changes; }
+async function listCoupons() {
+  return q("SELECT *, to_char(created_at, 'YYYY-MM-DD') AS created_at FROM coupons ORDER BY id DESC LIMIT 200");
+}
+async function createCoupon(code, percentOff, credits) {
+  try {
+    await pool.query('INSERT INTO coupons (code, percent_off, credits) VALUES ($1,$2,$3)',
+      [String(code).trim().toUpperCase(), Math.max(0, Math.min(90, percentOff | 0)), Math.max(0, credits | 0)]);
+    return true;
+  } catch (e) { return false; }
+}
+async function deleteCoupon(id) {
+  const r = await q1('DELETE FROM coupons WHERE id = $1 RETURNING id', [id]);
+  return !!r;
+}
 
 /* ------------------------- problems ------------------------- */
-const qProblems = {
-  create: db.prepare('INSERT INTO problems (user_id, subject, message) VALUES (?,?,?)'),
-  list: db.prepare('SELECT p.*, u.username FROM problems p LEFT JOIN users u ON u.id = p.user_id ORDER BY p.id DESC LIMIT 200'),
-  setStatus: db.prepare('UPDATE problems SET status = ? WHERE id = ?'),
-};
-function createProblem(userId, subject, message) { return !!qProblems.create.run(userId, String(subject).slice(0, 120), String(message).slice(0, 4000)).changes; }
-function listProblems() { return qProblems.list.all(); }
-function setProblemStatus(id, status) { return !!qProblems.setStatus.run(status, id).changes; }
+async function createProblem(userId, subject, message) {
+  const r = await q1('INSERT INTO problems (user_id, subject, message) VALUES ($1,$2,$3) RETURNING id',
+    [userId, String(subject).slice(0, 120), String(message).slice(0, 4000)]);
+  return !!r;
+}
+async function listProblems() {
+  return q("SELECT p.*, u.username, to_char(p.created_at, 'YYYY-MM-DD') AS created_at FROM problems p LEFT JOIN users u ON u.id = p.user_id ORDER BY p.id DESC LIMIT 200");
+}
+async function setProblemStatus(id, status) {
+  const r = await q1('UPDATE problems SET status = $1 WHERE id = $2 RETURNING id', [status, id]);
+  return !!r;
+}
 
 /* ------------------------- orders ------------------------- */
-const qOrders = {
-  create: db.prepare('INSERT INTO orders (user_id, plan, amount, coupon, razorpay_order_id) VALUES (?,?,?,?,?)'),
-  byRzp: db.prepare('SELECT * FROM orders WHERE razorpay_order_id = ?'),
-  setStatus: db.prepare('UPDATE orders SET status = ? WHERE id = ?'),
-};
-function createOrder(userId, plan, amount, coupon, rzpId) {
-  const info = qOrders.create.run(userId, plan, amount, coupon || null, rzpId || null);
-  return info.lastInsertRowid;
+async function createOrder(userId, plan, amount, coupon, rzpId) {
+  const r = await q1('INSERT INTO orders (user_id, plan, amount, coupon, razorpay_order_id) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+    [userId, plan, amount, coupon || null, rzpId || null]);
+  return r ? r.id : null;
 }
-function getOrderByRzp(rzpId) { return qOrders.byRzp.get(rzpId) || null; }
-function setOrderStatus(id, status) { return !!qOrders.setStatus.run(status, id).changes; }
+async function getOrderByRzp(rzpId) {
+  return q1('SELECT * FROM orders WHERE razorpay_order_id = $1', [rzpId]);
+}
+async function setOrderStatus(id, status) {
+  const r = await q1('UPDATE orders SET status = $1 WHERE id = $2 RETURNING id', [status, id]);
+  return !!r;
+}
 
 /* ------------------------- stats ------------------------- */
-function userStats(userId) {
-  return {
-    chats: db.prepare('SELECT COUNT(*) AS c FROM chats WHERE user_id = ?').get(userId).c,
-    reports: qReports.count.get(userId).c,
-    problems: db.prepare('SELECT COUNT(*) AS c FROM problems WHERE user_id = ?').get(userId).c,
-    memberSince: db.prepare('SELECT created_at FROM users WHERE id = ?').get(userId).created_at,
-  };
+async function userStats(userId) {
+  const [a, b, c, d] = await Promise.all([
+    q1('SELECT COUNT(*)::int AS c FROM chats WHERE user_id = $1', [userId]),
+    q1('SELECT COUNT(*)::int AS c FROM reports WHERE user_id = $1', [userId]),
+    q1('SELECT COUNT(*)::int AS c FROM problems WHERE user_id = $1', [userId]),
+    q1("SELECT to_char(created_at, 'YYYY-MM-DD') AS created_at FROM users WHERE id = $1", [userId]),
+  ]);
+  return { chats: a.c, reports: b.c, problems: c.c, memberSince: d ? d.created_at : null };
 }
 
 /* ------------------------- knowledge base (admin) ------------------------- */
-const qKb = {
-  list: db.prepare('SELECT * FROM kb ORDER BY id DESC LIMIT 500'),
-  add: db.prepare('INSERT INTO kb (topic, symptoms, summary, advice, severity) VALUES (?,?,?,?,?)'),
-  del: db.prepare('DELETE FROM kb WHERE id = ?'),
-};
-function listKB() { return qKb.list.all(); }
-function addKB(topic, symptoms, summary, advice, severity) {
-  return !!qKb.add.run(String(topic).slice(0, 120), String(symptoms).slice(0, 400), String(summary).slice(0, 800), String(advice).slice(0, 800), severity).changes;
+async function listKB() { return q('SELECT * FROM kb ORDER BY id DESC LIMIT 500'); }
+async function addKB(topic, symptoms, summary, advice, severity) {
+  const r = await q1('INSERT INTO kb (topic, symptoms, summary, advice, severity) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+    [String(topic).slice(0, 120), String(symptoms).slice(0, 400), String(summary).slice(0, 800), String(advice).slice(0, 800), severity]);
+  return !!r;
 }
-function deleteKB(id) { return !!qKb.del.run(id).changes; }
+async function deleteKB(id) {
+  const r = await q1('DELETE FROM kb WHERE id = $1 RETURNING id', [id]);
+  return !!r;
+}
 
 module.exports = {
-  db,
-  PLANS,
-  userCount, userExists, createUser, getUserByUsername, getUser, verifyPassword,
-  deductCredits, setPlan, setPrefs,
-  listChats, getChat, createChat, getMessages, getRecentMessages, addMessage,
-  touchChat, renameChat, deleteChat,
+  pool, PLANS, init,
+  userCount, userExists, emailExists, createUser, getUserByUsername, getUserByEmail, getUserByIdentifier, getUser, verifyPassword,
+  deductCredits, setPlan, setPrefs, listUsersAdmin,
+  listChats, getChat, createChat, getMessages, getRecentMessages, addMessage, touchChat, deleteChat,
   searchKB, listKB, addKB, deleteKB,
   listReports, getReport, createReport, deleteReport,
   findCoupon, listCoupons, createCoupon, deleteCoupon,
