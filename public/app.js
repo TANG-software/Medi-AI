@@ -229,9 +229,63 @@ function buildMsg(role, content, meta) {
   const icon = role === 'user' ? 'bi-person' : 'bi-activity';
   wrap.innerHTML = `
     <div class="msg-ava"><i class="bi ${icon}"></i></div>
-    <div class="bubble">${md(content)}${meta ? `<span class="meta">${esc(meta)}</span>` : ''}</div>`;
+    <div class="bubble">${md(content)}${role === 'ai' ? `<button class="speak-btn" title="Read aloud"><i class="bi bi-volume-up-fill"></i></button>` : ''}${meta ? `<span class="meta">${esc(meta)}</span>` : ''}</div>`;
+  const sb = wrap.querySelector('.speak-btn');
+  if (sb) sb.addEventListener('click', () => speak(content, sb));
   return wrap;
 }
+
+/* ------------------------------ read aloud (TTS) ------------------------------ */
+let speakingBtn = null;
+function stopSpeaking() {
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  if (speakingBtn) { speakingBtn.classList.remove('speaking'); speakingBtn = null; }
+}
+function pickVoice(langCode) {
+  try {
+    const voices = window.speechSynthesis.getVoices() || [];
+    return voices.find((v) => v.lang === langCode) ||
+           voices.find((v) => v.lang && langCode && v.lang.split('-')[0] === langCode.split('-')[0]) ||
+           null;
+  } catch (_) { return null; }
+}
+function speak(text, btn) {
+  if (!('speechSynthesis' in window)) return toast('Reading aloud is not supported in this browser.');
+  if (speakingBtn === btn) { stopSpeaking(); return; } // tap again = stop
+  stopSpeaking();
+  const langCode = state.user.language || 'en-IN';
+  const voice = pickVoice(langCode);
+  const clean = String(text)
+    .replace(/\*\*|__|`|#+|\*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!clean) return;
+  // Chunk by sentence so mobile browsers don't cut long answers off.
+  const parts = clean.match(/[^.!?\u0964]+[.!?\u0964]?/g) || [clean];
+  const groups = [];
+  let buf = '';
+  for (const c of parts) {
+    if ((buf + c).length > 200) { if (buf) groups.push(buf); buf = c; }
+    else buf += c;
+  }
+  if (buf) groups.push(buf);
+  groups.forEach((g, i) => {
+    const u = new SpeechSynthesisUtterance(g);
+    u.lang = langCode;
+    if (voice) u.voice = voice;
+    u.rate = 1;
+    u.pitch = 1;
+    if (i === groups.length - 1) {
+      u.onend = () => { if (speakingBtn === btn) stopSpeaking(); };
+      u.onerror = () => { if (speakingBtn === btn) stopSpeaking(); };
+    }
+    window.speechSynthesis.speak(u);
+  });
+  btn.classList.add('speaking');
+  speakingBtn = btn;
+}
+window.addEventListener('beforeunload', stopSpeaking);
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopSpeaking(); });
 
 function showEmergencyBanner() {
   const b = document.createElement('div');
@@ -253,6 +307,7 @@ function typingBubble() {
 /* ------------------------------ send ------------------------------ */
 async function send(textOverride) {
   if (state.sending) return;
+  stopSpeaking();
   const input = $('#input');
   const text = (textOverride != null ? textOverride : input.value).trim();
   if (!text) return;
