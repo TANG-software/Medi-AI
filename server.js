@@ -1,7 +1,8 @@
 /**
  * Medi AI — production server
- * Express + SQLite. Auth, chats, credits & plans, multi-AI with fallback,
- * knowledge-base grounded answers, emergency detection, 50+ languages.
+ * Express + PostgreSQL (Neon). Auth with email, chats, credits & plans,
+ * multi-AI with fallback, knowledge-base grounded answers,
+ * emergency detection, 50+ languages. All data survives redeploys.
  */
 'use strict';
 const path = require('path');
@@ -58,7 +59,8 @@ const LANGUAGES = [
   { code: 'ko-KR', name: '한국어 — Korean' },
   { code: 'id-ID', name: 'Bahasa Indonesia' }, { code: 'ms-MY', name: 'Bahasa Melayu' },
   { code: 'tr-TR', name: 'Türkçe — Turkish' }, { code: 'fa-IR', name: 'فارسی — Persian' },
-  { code: 'vi-VN', name: 'Tiếng Việt — Vietnamese' }, { code: 'th-TH', name: 'ไทย — Thai' },
+  { code: 'vi-VN', name: 'Tiếng Việt — Vietnamese' },
+  { code: 'th-TH', name: 'ไทย — Thai' },
   { code: 'fil-PH', name: 'Filipino' }, { code: 'nl-NL', name: 'Nederlands — Dutch' },
   { code: 'pl-PL', name: 'Polski — Polish' }, { code: 'uk-UA', name: 'Українська — Ukrainian' },
   { code: 'ro-RO', name: 'Română — Romanian' }, { code: 'el-GR', name: 'Ελληνικά — Greek' },
@@ -67,8 +69,7 @@ const LANGUAGES = [
   { code: 'hu-HU', name: 'Magyar — Hungarian' },
   { code: 'sv-SE', name: 'Svenska — Swedish' },
   { code: 'no-NO', name: 'Norsk — Norwegian' },
-  { code: 'da-DK', name: 'Dansk — Danish' },
-  { code: 'fi-FI', name: 'Suomi — Finnish' },
+  { code: 'da-DK', name: 'Dansk — Danish' }, { code: 'fi-FI', name: 'Suomi — Finnish' },
 ];
 
 /* --------------------------- emergencies --------------------------- */
@@ -130,50 +131,67 @@ function buildSystemPrompt({ mode, languageName, kbHits, emergency }) {
 /* ---------------------------- helpers ----------------------------- */
 function publicUser(u) {
   return {
-    id: u.id, username: u.username, plan: u.plan, planLabel: (PLANS[u.plan] || PLANS.free).label,
-    credits: u.credits, language: u.language, provider: u.provider, isAdmin: !!u.is_admin,
+    id: u.id, username: u.username, email: u.email || undefined, plan: u.plan,
+    planLabel: (PLANS[u.plan] || PLANS.free).label,
+    credits: u.credits, language: u.language, isAdmin: !!u.is_admin,
   };
 }
-function currentUser(req) {
+async function currentUser(req) {
   if (!req.session || !req.session.uid) return null;
   return db.getUser(req.session.uid);
 }
-function requireAuth(req, res, next) {
-  if (!currentUser(req)) return res.status(401).json({ error: 'Please log in.' });
+async function requireAuth(req, res, next) {
+  const u = await currentUser(req);
+  if (!u) return res.status(401).json({ error: 'Please log in.' });
+  req.user = u;
   next();
 }
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /* ------------------------------ auth ------------------------------ */
-app.post('/api/signup', (req, res) => {
-  const { username, password } = req.body || {};
-  const uname = String(username || '').trim();
-  const pass = String(password || '');
-  if (uname.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters.' });
-  if (!/^[a-zA-Z0-9_.-]+$/.test(uname)) return res.status(400).json({ error: 'Username can only have letters, numbers, dot, dash, underscore.' });
-  if (pass.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
-  if (db.userExists(uname)) return res.status(409).json({ error: 'That username is already taken.' });
-  const isFirst = db.userCount() === 0; // first user becomes admin
-  const u = db.createUser(uname, pass, isFirst);
-  req.session.uid = u.id;
-  res.json({ ok: true, user: publicUser(u) });
+app.post('/api/signup', async (req, res) => {
+  try {
+    const { username, email, password } = req.body || {};
+    const uname = String(username || '').trim();
+    const mail = String(email || '').trim().toLowerCase();
+    const pass = String(password || '');
+    if (uname.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters.' });
+    if (!/^[a-zA-Z0-9_.-]+$/.test(uname)) return res.status(400).json({ error: 'Username can only have letters, numbers, dot, dash, underscore.' });
+    if (!EMAIL_RE.test(mail)) return res.status(400).json({ error: 'Please enter a valid email address.' });
+    if (pass.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    if (await db.userExists(uname)) return res.status(409).json({ error: 'That username is already taken.' });
+    if (await db.emailExists(mail)) return res.status(409).json({ error: 'An account with this email already exists.' });
+    const isFirst = (await db.userCount()) === 0; // first user becomes admin
+    const u = await db.createUser(uname, mail, pass, isFirst);
+    req.session.uid = u.id;
+    res.json({ ok: true, user: publicUser(u) });
+  } catch (e) {
+    console.error('[signup] ' + e.message);
+    res.status(500).json({ error: 'Could not create account. Please try again.' });
+  }
 });
 
-app.post('/api/login', (req, res) => {
-  const { username, password } = req.body || {};
-  const u = db.getUserByUsername(String(username || ''));
-  if (!u || !db.verifyPassword(u, String(password || ''))) {
-    return res.status(401).json({ error: 'Wrong username or password.' });
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    const u = await db.getUserByIdentifier(String(username || ''));
+    if (!u || !db.verifyPassword(u, String(password || ''))) {
+      return res.status(401).json({ error: 'Wrong email/username or password.' });
+    }
+    req.session.uid = u.id;
+    res.json({ ok: true, user: publicUser(u) });
+  } catch (e) {
+    console.error('[login] ' + e.message);
+    res.status(500).json({ error: 'Could not log in. Please try again.' });
   }
-  req.session.uid = u.id;
-  res.json({ ok: true, user: publicUser(u) });
 });
 
 app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
-app.get('/api/me', (req, res) => {
-  const u = currentUser(req);
+app.get('/api/me', async (req, res) => {
+  const u = await currentUser(req);
   res.json({
     user: u ? publicUser(u) : null,
     plans: PLANS,
@@ -183,35 +201,34 @@ app.get('/api/me', (req, res) => {
 });
 
 /* ---------------------------- settings ---------------------------- */
-app.post('/api/settings', requireAuth, (req, res) => {
-  const u = currentUser(req);
+app.post('/api/settings', requireAuth, async (req, res) => {
+  const u = req.user;
   const { language } = req.body || {};
   const lang = LANGUAGES.find((l) => l.code === language) || LANGUAGES.find((l) => l.code === u.language) || LANGUAGES[0];
-  const updated = db.setPrefs(u.id, lang.code, null);
+  const updated = await db.setPrefs(u.id, lang.code, null);
   res.json({ ok: true, user: publicUser(updated) });
 });
 
 /* ------------------------------ chats ----------------------------- */
-app.get('/api/chats', requireAuth, (req, res) => {
-  res.json({ chats: db.listChats(currentUser(req).id) });
+app.get('/api/chats', requireAuth, async (req, res) => {
+  res.json({ chats: await db.listChats(req.user.id) });
 });
 
-app.get('/api/chats/:id', requireAuth, (req, res) => {
-  const u = currentUser(req);
-  const chat = db.getChat(Number(req.params.id), u.id);
+app.get('/api/chats/:id', requireAuth, async (req, res) => {
+  const chat = await db.getChat(Number(req.params.id), req.user.id);
   if (!chat) return res.status(404).json({ error: 'Chat not found.' });
-  res.json({ chat, messages: db.getMessages(chat.id) });
+  res.json({ chat, messages: await db.getMessages(chat.id) });
 });
 
-app.delete('/api/chats/:id', requireAuth, (req, res) => {
-  const ok = db.deleteChat(Number(req.params.id), currentUser(req).id);
+app.delete('/api/chats/:id', requireAuth, async (req, res) => {
+  const ok = await db.deleteChat(Number(req.params.id), req.user.id);
   res.json({ ok });
 });
 
 /* ------------------------------ chat ------------------------------- */
 app.post('/api/chat', requireAuth, async (req, res) => {
   try {
-    const u = currentUser(req);
+    const u = req.user;
     const { chatId, text, mode = 'chat', language } = req.body || {};
     const body = String(text || '').trim();
     if (!body) return res.status(400).json({ error: 'Message is empty.' });
@@ -221,22 +238,22 @@ app.post('/api/chat', requireAuth, async (req, res) => {
                  LANGUAGES.find((l) => l.code === u.language) || LANGUAGES[0];
 
     const cost = mode === 'report' ? 2 : 1;
-    const fresh = db.getUser(u.id);
+    const fresh = await db.getUser(u.id);
     if (fresh.credits < cost) {
       return res.status(402).json({ error: 'Not enough credits. Upgrade your plan to continue.', credits: fresh.credits });
     }
 
-    let chat = chatId ? db.getChat(Number(chatId), u.id) : null;
-    if (!chat) chat = db.createChat(u.id, body.replace(/\s+/g, ' ').slice(0, 50), mode);
+    let chat = chatId ? await db.getChat(Number(chatId), u.id) : null;
+    if (!chat) chat = await db.createChat(u.id, body.replace(/\s+/g, ' ').slice(0, 50), mode);
 
     const emergency = detectEmergency(body);
-    const kbHits = db.searchKB(body, 3);
+    const kbHits = await db.searchKB(body, 3);
     const system = buildSystemPrompt({ mode, languageName: lang.name, kbHits, emergency });
 
-    const history = db.getRecentMessages(chat.id, 10);
+    const history = await db.getRecentMessages(chat.id, 10);
     const messages = [{ role: 'system', content: system }, ...history, { role: 'user', content: body }];
 
-    db.addMessage(chat.id, 'user', body);
+    await db.addMessage(chat.id, 'user', body);
 
     // Engine count depends on the plan: Free = 2 engines, Plus = 3,
     // Plus+ = 4, Pro tiers = all available engines, working collectively.
@@ -245,17 +262,17 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const result = plan.engines > 1
       ? await ai.ensembleChat(messages, plan.engines)
       : await ai.chat(null, messages);
-    db.addMessage(chat.id, 'assistant', result.text);
-    db.touchChat(chat.id);
+    await db.addMessage(chat.id, 'assistant', result.text);
+    await db.touchChat(chat.id);
 
     // In report mode the exchange is also saved as a reusable report.
     let reportId = null;
     if (mode === 'report') {
-      const saved = db.createReport(u.id, body.replace(/\s+/g, ' ').slice(0, 60) || 'Report', body, result.text);
+      const saved = await db.createReport(u.id, body.replace(/\s+/g, ' ').slice(0, 60) || 'Report', body, result.text);
       reportId = saved ? saved.id : null;
     }
 
-    const credits = db.deductCredits(u.id, cost);
+    const credits = await db.deductCredits(u.id, cost);
     res.json({
       ok: true, chatId: chat.id, reply: result.text,
       engines: result.engines || 1, credits, emergency, reportId,
@@ -268,63 +285,59 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 });
 
 /* ------------------------------ admin ----------------------------- */
-app.get('/api/admin/users', requireAuth, (req, res) => {
-  const u = currentUser(req);
-  if (!u.is_admin) return res.status(403).json({ error: 'Admins only.' });
-  const users = db.db.prepare('SELECT id, username, plan, credits, is_admin, created_at FROM users ORDER BY id DESC LIMIT 200').all();
-  res.json({ users });
+app.get('/api/admin/users', requireAuth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
+  res.json({ users: await db.listUsersAdmin() });
 });
 
-app.post('/api/admin/plan', requireAuth, (req, res) => {
-  const u = currentUser(req);
-  if (!u.is_admin) return res.status(403).json({ error: 'Admins only.' });
+app.post('/api/admin/plan', requireAuth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
   const { username, plan } = req.body || {};
-  const target = db.getUserByUsername(String(username || ''));
+  const target = await db.getUserByIdentifier(String(username || ''));
   if (!target) return res.status(404).json({ error: 'User not found.' });
   const p = PLANS[plan];
   if (!p) return res.status(400).json({ error: 'Unknown plan: ' + plan });
   const now = Math.floor(Date.now() / 1000);
   const expires = p.weeks ? now + p.weeks * 7 * 86400 : null;
-  const updated = db.setPlan(target.id, plan, p.credits, expires, now);
+  const updated = await db.setPlan(target.id, plan, p.credits, expires, now);
   res.json({ ok: true, user: publicUser(updated) });
 });
 
 /* ------------------------------ dashboard ------------------------- */
-app.get('/api/dashboard', requireAuth, (req, res) => {
-  const u = currentUser(req);
+app.get('/api/dashboard', requireAuth, async (req, res) => {
+  const u = req.user;
   res.json({
     user: publicUser(u),
-    stats: db.userStats(u.id),
-    recentChats: db.listChats(u.id).slice(0, 5),
-    recentReports: db.listReports(u.id).slice(0, 5),
+    stats: await db.userStats(u.id),
+    recentChats: (await db.listChats(u.id)).slice(0, 5),
+    recentReports: (await db.listReports(u.id)).slice(0, 5),
   });
 });
 
 /* ------------------------------ reports --------------------------- */
-app.get('/api/reports', requireAuth, (req, res) => {
-  res.json({ reports: db.listReports(currentUser(req).id) });
+app.get('/api/reports', requireAuth, async (req, res) => {
+  res.json({ reports: await db.listReports(req.user.id) });
 });
 
-app.get('/api/reports/:id', requireAuth, (req, res) => {
-  const r = db.getReport(Number(req.params.id), currentUser(req).id);
+app.get('/api/reports/:id', requireAuth, async (req, res) => {
+  const r = await db.getReport(Number(req.params.id), req.user.id);
   if (!r) return res.status(404).json({ error: 'Report not found.' });
   res.json({ report: r });
 });
 
-app.delete('/api/reports/:id', requireAuth, (req, res) => {
-  res.json({ ok: db.deleteReport(Number(req.params.id), currentUser(req).id) });
+app.delete('/api/reports/:id', requireAuth, async (req, res) => {
+  res.json({ ok: await db.deleteReport(Number(req.params.id), req.user.id) });
 });
 
 /* ------------------------------ coupons --------------------------- */
-app.post('/api/coupon/redeem', requireAuth, (req, res) => {
+app.post('/api/coupon/redeem', requireAuth, async (req, res) => {
   const code = String((req.body || {}).code || '').trim();
   if (!code) return res.status(400).json({ error: 'Enter a coupon code.' });
-  const c = db.findCoupon(code);
+  const c = await db.findCoupon(code);
   if (!c) return res.status(404).json({ error: 'Invalid or expired coupon code.' });
   if (c.credits > 0) {
-    const u = currentUser(req);
-    const fresh = db.getUser(u.id);
-    const updated = db.setPlan(fresh.id, fresh.plan, fresh.credits + c.credits);
+    const fresh = await db.getUser(req.user.id);
+    const updated = await db.setPlan(fresh.id, fresh.plan, fresh.credits + c.credits);
     return res.json({ ok: true, message: 'Coupon applied! +' + c.credits + ' credits added.', credits: updated.credits, percentOff: 0 });
   }
   if (c.percent_off > 0) {
@@ -366,7 +379,7 @@ function rzpRequest(method, apiPath, body) {
 
 app.post('/api/payment/create-order', requireAuth, async (req, res) => {
   try {
-    const u = currentUser(req);
+    const u = req.user;
     const { plan, coupon } = req.body || {};
     const p = PLANS[plan];
     if (!p || !p.priceInr) return res.status(400).json({ error: 'Choose a paid plan to continue.' });
@@ -376,14 +389,14 @@ app.post('/api/payment/create-order', requireAuth, async (req, res) => {
     let percentOff = 0;
     let couponCode = null;
     if (coupon) {
-      const c = db.findCoupon(coupon);
+      const c = await db.findCoupon(coupon);
       if (c && c.percent_off > 0) { percentOff = c.percent_off; couponCode = c.code; }
     }
     const amount = Math.round(p.priceInr * 100 * (1 - percentOff / 100)); // paise
     const rzp = await rzpRequest('POST', '/v1/orders', {
       amount, currency: 'INR', receipt: 'medi-' + Date.now(), notes: { username: u.username, plan },
     });
-    db.createOrder(u.id, plan, amount, couponCode, rzp.id);
+    await db.createOrder(u.id, plan, amount, couponCode, rzp.id);
     res.json({
       ok: true, plan, amount, percentOff,
       keyId: process.env.RAZORPAY_KEY_ID,
@@ -395,20 +408,20 @@ app.post('/api/payment/create-order', requireAuth, async (req, res) => {
   }
 });
 
-app.post('/api/payment/verify', requireAuth, (req, res) => {
-  const u = currentUser(req);
+app.post('/api/payment/verify', requireAuth, async (req, res) => {
+  const u = req.user;
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan } = req.body || {};
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
     return res.status(400).json({ error: 'Missing payment verification fields.' });
   }
-  const order = db.getOrderByRzp(razorpay_order_id);
+  const order = await db.getOrderByRzp(razorpay_order_id);
   if (!order || order.user_id !== u.id) return res.status(404).json({ error: 'Order not found.' });
   const expected = crypto
     .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
     .update(razorpay_order_id + '|' + razorpay_payment_id)
     .digest('hex');
   if (expected !== razorpay_signature) {
-    db.setOrderStatus(order.id, 'tampered');
+    await db.setOrderStatus(order.id, 'tampered');
     return res.status(400).json({ error: 'Payment verification failed. If money was deducted it will be auto-refunded by Razorpay.' });
   }
   const target = order.plan || plan;
@@ -416,80 +429,80 @@ app.post('/api/payment/verify', requireAuth, (req, res) => {
   if (!p) return res.status(400).json({ error: 'Unknown plan on order.' });
   const now = Math.floor(Date.now() / 1000);
   const expires = p.weeks ? now + p.weeks * 7 * 86400 : null;
-  const updated = db.setPlan(u.id, target, p.credits, expires, now);
-  db.setOrderStatus(order.id, 'paid');
+  const updated = await db.setPlan(u.id, target, p.credits, expires, now);
+  await db.setOrderStatus(order.id, 'paid');
   res.json({ ok: true, user: publicUser(updated), plan: target });
 });
 
 /* ------------------------------ problems -------------------------- */
-app.post('/api/report-problem', requireAuth, (req, res) => {
-  const u = currentUser(req);
+app.post('/api/report-problem', requireAuth, async (req, res) => {
+  const u = req.user;
   const { subject, message } = req.body || {};
   const s = String(subject || '').trim();
   const m = String(message || '').trim();
   if (!s || !m) return res.status(400).json({ error: 'Subject and message are required.' });
-  db.createProblem(u.id, s, m);
+  await db.createProblem(u.id, s, m);
   res.json({ ok: true, message: 'Thank you! Your report was sent to the team.' });
 });
 
 /* ------------------------------ admin extras ---------------------- */
-app.get('/api/admin/problems', requireAuth, (req, res) => {
-  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
-  res.json({ problems: db.listProblems() });
+app.get('/api/admin/problems', requireAuth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
+  res.json({ problems: await db.listProblems() });
 });
 
-app.post('/api/admin/problems/:id', requireAuth, (req, res) => {
-  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
+app.post('/api/admin/problems/:id', requireAuth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
   const status = ['open', 'closed'].includes((req.body || {}).status) ? req.body.status : 'open';
-  res.json({ ok: db.setProblemStatus(Number(req.params.id), status) });
+  res.json({ ok: await db.setProblemStatus(Number(req.params.id), status) });
 });
 
-app.get('/api/admin/knowledge', requireAuth, (req, res) => {
-  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
-  res.json({ topics: db.listKB() });
+app.get('/api/admin/knowledge', requireAuth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
+  res.json({ topics: await db.listKB() });
 });
 
-app.post('/api/admin/knowledge', requireAuth, (req, res) => {
-  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
+app.post('/api/admin/knowledge', requireAuth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
   const { topic, symptoms, summary, advice, severity } = req.body || {};
   if (!topic || !symptoms || !summary || !advice) {
     return res.status(400).json({ error: 'Topic, symptoms, summary and advice are required.' });
   }
   const sev = ['self-care', 'see-doctor', 'emergency'].includes(severity) ? severity : 'self-care';
-  const ok = db.addKB(topic, symptoms, summary, advice, sev);
+  const ok = await db.addKB(topic, symptoms, summary, advice, sev);
   ok ? res.json({ ok: true }) : res.status(400).json({ error: 'Could not add topic.' });
 });
 
-app.delete('/api/admin/knowledge/:id', requireAuth, (req, res) => {
-  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
-  res.json({ ok: db.deleteKB(Number(req.params.id)) });
+app.delete('/api/admin/knowledge/:id', requireAuth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
+  res.json({ ok: await db.deleteKB(Number(req.params.id)) });
 });
 
-app.get('/api/admin/coupons', requireAuth, (req, res) => {
-  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
-  res.json({ coupons: db.listCoupons() });
+app.get('/api/admin/coupons', requireAuth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
+  res.json({ coupons: await db.listCoupons() });
 });
 
-app.post('/api/admin/coupons', requireAuth, (req, res) => {
-  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
+app.post('/api/admin/coupons', requireAuth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
   const { code, percentOff, credits } = req.body || {};
   if (!code) return res.status(400).json({ error: 'Coupon code is required.' });
-  const ok = db.createCoupon(code, Number(percentOff) || 0, Number(credits) || 0);
+  const ok = await db.createCoupon(code, Number(percentOff) || 0, Number(credits) || 0);
   ok ? res.json({ ok: true }) : res.status(400).json({ error: 'Coupon already exists.' });
 });
 
-app.delete('/api/admin/coupons/:id', requireAuth, (req, res) => {
-  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
-  res.json({ ok: db.deleteCoupon(Number(req.params.id)) });
+app.delete('/api/admin/coupons/:id', requireAuth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
+  res.json({ ok: await db.deleteCoupon(Number(req.params.id)) });
 });
 
-app.get('/api/admin/sync-status', requireAuth, (req, res) => {
-  if (!currentUser(req).is_admin) return res.status(403).json({ error: 'Admins only.' });
+app.get('/api/admin/sync-status', requireAuth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
   res.json({
     uptime: Math.round(process.uptime()),
     engines: ai.available().length,
-    users: db.userCount(),
-    knowledge: db.listKB().length,
+    users: await db.userCount(),
+    knowledge: (await db.listKB()).length,
     payments: !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
     whatsapp: !!process.env.WHATSAPP_TOKEN,
   });
@@ -516,7 +529,7 @@ app.post('/whatsapp/webhook', express.json(), async (req, res) => {
     const text = String(msg.text && msg.text.body || '').slice(0, 2000);
     if (!text) return;
     const emergency = detectEmergency(text);
-    const kbHits = db.searchKB(text, 3);
+    const kbHits = await db.searchKB(text, 3);
     const system = buildSystemPrompt({ mode: 'chat', languageName: 'English', kbHits, emergency });
     const result = await ai.chat(null, [{ role: 'system', content: system }, { role: 'user', content: text }]);
     const reply = String(result.text).slice(0, 4000);
@@ -546,7 +559,18 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log('[medi-ai] listening on port ' + PORT);
-  console.log('[medi-ai] AI engines with keys: ' + (ai.available().length || 'NONE — set API keys!'));
-});
+/* ------------------------------ boot ------------------------------- */
+(async () => {
+  try {
+    await db.init();
+    console.log('[medi-ai] database ready (PostgreSQL)');
+  } catch (e) {
+    console.error('[medi-ai] DATABASE ERROR: ' + e.message);
+    console.error('[medi-ai] Set DATABASE_URL (e.g. a free Neon Postgres connection string).');
+    process.exit(1);
+  }
+  app.listen(PORT, () => {
+    console.log('[medi-ai] listening on port ' + PORT);
+    console.log('[medi-ai] AI engines with keys: ' + (ai.available().length || 'NONE — set API keys!'));
+  });
+})();
