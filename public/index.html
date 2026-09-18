@@ -66,6 +66,14 @@
 
       <button class="btn-new-chat" id="newChatBtn"><i class="bi bi-plus-lg"></i> New chat</button>
 
+      <nav class="sidebar-nav">
+        <button class="nav-link" data-page="dashboard"><i class="bi bi-grid-1x2"></i> Dashboard</button>
+        <button class="nav-link" data-page="reports"><i class="bi bi-file-earmark-medical"></i> Reports</button>
+        <button class="nav-link" data-page="pricing"><i class="bi bi-stars"></i> Pricing</button>
+        <button class="nav-link" data-page="about"><i class="bi bi-info-circle"></i> About</button>
+        <button class="nav-link" data-page="problem"><i class="bi bi-exclamation-triangle"></i> Report a problem</button>
+      </nav>
+
       <div class="sidebar-search">
         <i class="bi bi-search"></i>
         <input id="chatSearch" type="search" placeholder="Search chats…">
@@ -93,6 +101,8 @@
           <span class="credit-pill top-credits"><i class="bi bi-lightning-charge"></i> <b id="creditCountTop">0</b></span>
         </div>
       </header>
+
+      <div id="pageView" class="page-view hidden"></div>
 
       <div class="messages" id="messages">
         <div class="welcome" id="welcome">
@@ -155,8 +165,19 @@
   <!-- ============ ADMIN MODAL ============ -->
   <div id="adminModal" class="modal hidden">
     <div class="modal-card wide">
-      <div class="modal-head"><h3><i class="bi bi-shield-lock"></i> Admin — user plans</h3><button class="icon-btn" id="adminClose"><i class="bi bi-x-lg"></i></button></div>
-      <div id="adminUsers" class="admin-users">Loading…</div>
+      <div class="modal-head"><h3><i class="bi bi-shield-lock"></i> Admin</h3><button class="icon-btn" id="adminClose"><i class="bi bi-x-lg"></i></button></div>
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-tab="users">Users</button>
+        <button class="admin-tab" data-tab="knowledge">Knowledge</button>
+        <button class="admin-tab" data-tab="coupons">Coupons</button>
+        <button class="admin-tab" data-tab="problems">Problems</button>
+        <button class="admin-tab" data-tab="status">Status</button>
+      </div>
+      <div id="adminUsers" class="admin-pane">Loading…</div>
+      <div id="adminKnowledge" class="admin-pane hidden"></div>
+      <div id="adminCoupons" class="admin-pane hidden"></div>
+      <div id="adminProblems" class="admin-pane hidden"></div>
+      <div id="adminStatus" class="admin-pane hidden"></div>
     </div>
   </div>
 
