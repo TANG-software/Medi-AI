@@ -275,14 +275,13 @@ async function send(textOverride) {
         text,
         mode: state.mode,
         language: state.user.language,
-        provider: state.user.provider || null,
+        provider: null,
       },
     });
     const t = $('#typingMsg');
     if (t) t.remove();
     if (r.emergency) showEmergencyBanner();
-    const label = (state.providers.find((p) => p.id === r.provider) || {}).label || r.provider;
-    $('#messages').appendChild(buildMsg('ai', r.reply, 'Medi AI · ' + label));
+    $('#messages').appendChild(buildMsg('ai', r.reply, r.engines > 1 ? 'Medi AI · Multi-engine answer' : 'Medi AI'));
     state.chatId = r.chatId;
     updateCredits(r.credits);
     state.user.credits = r.credits;
@@ -402,10 +401,6 @@ function fillSettings() {
   const ls = $('#langSelect');
   ls.innerHTML = state.languages.map((l) =>
     `<option value="${l.code}" ${l.code === state.user.language ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
-  const ps = $('#providerSelect');
-  ps.innerHTML = '<option value="">Auto (first available)</option>' +
-    state.providers.map((p) =>
-      `<option value="${p.id}" ${p.id === state.user.provider ? 'selected' : ''}>${esc(p.label)}</option>`).join('');
   $('#settingsPlan').textContent = state.user.planLabel;
   $('#settingsCredits').textContent = state.user.credits;
 }
@@ -415,7 +410,7 @@ $('#saveSettings').addEventListener('click', async () => {
   try {
     const r = await api('/api/settings', {
       method: 'POST',
-      body: { language: $('#langSelect').value, provider: $('#providerSelect').value || null },
+      body: { language: $('#langSelect').value },
     });
     state.user = Object.assign({}, state.user, r.user);
     $('#settingsModal').classList.add('hidden');
@@ -578,7 +573,7 @@ async function renderPricing() {
             <li><b>${p.credits}</b> credits</li>
             <li>Report Lens access</li>
             <li>50+ languages</li>
-            <li>${id === 'pro' ? 'Priority AI engines' : 'All 10 AI engines'}</li>
+            <li>${id === 'pro' ? 'Medi AI Collective — 2 engines per answer' : 'All 10 AI engines'}</li>
           </ul>
           ${id === 'free' ? '<button class="btn-ghost" disabled>Default plan</button>'
             : id === current ? '<button class="btn-gold" disabled>Current plan</button>'
@@ -603,7 +598,7 @@ function renderAbout() {
       <h3>Your multilingual health companion</h3>
       <div class="md">
         <p>Medi AI helps you understand health questions and medical reports in simple language, in <b>50+ languages</b> — all 22 official Indian languages included.</p>
-        <p>It combines <b>10 AI engines</b> with a curated medical knowledge base, automatically falls back if one engine is busy, and detects emergencies.</p>
+        <p>It combines <b>multiple AI engines</b> with a curated medical knowledge base, automatically falls back if one engine is busy, and detects emergencies. Pro plans get the <b>Medi AI Collective</b> — two engines working together on every answer.</p>
         <p><b>Features:</b> medical chat, Report Lens (photo → explanation), voice input, saved reports, plans & credits, coupons, dashboard, admin tools and a WhatsApp bot.</p>
         <p><b>Important:</b> Medi AI provides general information, not a medical diagnosis. In an emergency, call <b>112</b> (India) or your local emergency number.</p>
       </div>
@@ -803,7 +798,7 @@ async function loadAdminStatus() {
         <div class="stat-card"><i class="bi bi-clock"></i><b>${mins}m</b><span>Server uptime</span></div>
         <div class="stat-card"><i class="bi bi-people"></i><b>${s.users}</b><span>Users</span></div>
         <div class="stat-card"><i class="bi bi-book-heart"></i><b>${s.knowledge}</b><span>KB topics</span></div>
-        <div class="stat-card"><i class="bi bi-cpu"></i><b>${s.providers.length}</b><span>AI engines</span></div>
+        <div class="stat-card"><i class="bi bi-cpu"></i><b>${s.engines}</b><span>AI engines</span></div>
       </div>
       <p class="modal-hint">Payments (Razorpay): ${s.payments ? 'configured ✅' : 'not configured'} · WhatsApp bot: ${s.whatsapp ? 'configured ✅' : 'not configured'}</p>`;
   } catch (e) { box.innerHTML = '<p class="modal-hint">' + esc(e.message) + '</p>'; }
