@@ -108,6 +108,9 @@ function byId(id) { return PROVIDERS.find((p) => p.id === id) || null; }
 /** Model can be overridden per provider via e.g. GROQ_MODEL=... */
 function modelOf(p) { return process.env[p.id.toUpperCase() + '_MODEL'] || p.model; }
 
+/** Base URL can be overridden per provider via e.g. MISTRAL_BASE_URL=... */
+function urlOf(p) { return process.env[p.id.toUpperCase() + '_BASE_URL'] || p.url; }
+
 /* ---------- model auto-discovery ----------
    Providers retire old model names over time (e.g. Groq 404s on
    llama-3.3-70b-versatile). When that happens we ask the provider's
@@ -118,7 +121,7 @@ const PREFERRED_MODEL = /llama|gpt-oss|qwen|kimi|deepseek|mixtral|gemma|sarvam|c
 
 async function discoverModel(p) {
   try {
-    const base = p.url.replace(/\/chat\/completions$/, '');
+    const base = urlOf(p).replace(/\/chat\/completions$/, '');
     const res = await getJSON(base + '/models', { Authorization: 'Bearer ' + process.env[p.keyEnv] });
     const ids = (res.data || []).map((m) => m.id).filter(Boolean);
     const chat = ids.filter((id) => !NOT_A_CHAT_MODEL.test(id));
@@ -142,7 +145,7 @@ function extractContent(p, res) {
 }
 
 async function callOpenAI(p, messages) {
-  const attempt = (model) => postJSON(p.url, {
+  const attempt = (model) => postJSON(urlOf(p), {
     model,
     messages,
     temperature: 0.4,
@@ -181,6 +184,49 @@ async function callProvider(p, messages) {
 }
 
 /**
+ * Multi-engine answer ("Collective"): two different providers answer
+ * the same question in parallel, then a synthesis call merges both
+ * drafts into one final, safer answer. Provider identities are never
+ * exposed to the client — only the engine count.
+ */
+async function ensembleChat(messages) {
+  const avail = PROVIDERS.filter((p) => process.env[p.keyEnv]);
+  if (!avail.length) {
+    const err = new Error('No AI provider keys configured. Add at least one key (e.g. GROQ_API_KEY) in your environment settings.');
+    err.code = 'NO_KEYS';
+    throw err;
+  }
+  if (avail.length === 1) {
+    const r = await chat(avail[0].id, messages);
+    return { text: r.text, engines: 1 };
+  }
+  const picks = [avail[0], avail[1]];
+  const results = await Promise.allSettled(picks.map((p) => callProvider(p, messages)));
+  const texts = results.filter((r) => r.status === 'fulfilled' && r.value).map((r) => r.value);
+  if (!texts.length) {
+    const r = await chat(null, messages); // full fallback chain
+    return { text: r.text, engines: 1 };
+  }
+  if (texts.length === 1) return { text: texts[0], engines: 1 };
+  const synthPrompt = [
+    'Combine the two independent draft answers below into ONE final answer for the patient.',
+    'Rules:',
+    '1. Use the best of both drafts and remove repetition.',
+    '2. If the drafts disagree, keep the more cautious, safer advice.',
+    '3. Keep practical self-care tips and safe over-the-counter medicine suggestions (with a check-with-your-doctor note) when they help.',
+    '4. Keep any emergency warning if either draft has one.',
+    '5. Obey the language rule from the system instructions above.',
+    '6. Never mention drafts, engines, AI systems or how this answer was produced.',
+  ].join('\n');
+  const finalMessages = [
+    ...messages,
+    { role: 'user', content: synthPrompt + '\n\nDRAFT 1:\n' + texts[0].slice(0, 4000) + '\n\nDRAFT 2:\n' + texts[1].slice(0, 4000) },
+  ];
+  const final = await chat(picks[0].id, finalMessages);
+  return { text: final.text, engines: 2 };
+}
+
+/**
  * Try the requested provider first (or the first available one),
  * then fall back to any other available provider on failure.
  */
@@ -206,4 +252,4 @@ async function chat(providerId, messages) {
   throw new Error('All AI providers failed. Last error: ' + (lastErr ? lastErr.message : 'unknown'));
 }
 
-module.exports = { available, chat, byId };
+module.exports = { available, chat, byId, ensembleChat };
