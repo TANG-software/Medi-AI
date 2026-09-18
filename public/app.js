@@ -437,7 +437,7 @@ $('#adminBtn').addEventListener('click', async () => {
         <i class="bi bi-person"></i><span class="name">${esc(u.username)}${u.is_admin ? ' · admin' : ''}</span>
         <span style="color:var(--text-dim)">${u.credits}cr</span>
         <select data-user="${esc(u.username)}">
-          ${['free', 'plus', 'pro'].map((p) =>
+          ${Object.keys(state.plans).map((p) =>
             `<option value="${p}" ${p === u.plan ? 'selected' : ''}>${p}</option>`).join('')}
         </select>`;
       box.appendChild(row);
@@ -561,6 +561,15 @@ async function renderPricing() {
   const me = await api('/api/me');
   const plans = Object.entries(me.plans || {});
   const current = (me.user || {}).plan;
+  const featureLine = (id, p) => {
+    const renew = p.renewDays
+      ? `${p.credits} credits ${p.renewDays === 7 ? 'every week' : 'every 2 weeks'}${p.weeks ? (p.weeks >= 52 ? ' for 1 year' : ' for ' + p.weeks + ' weeks') : ''}`
+      : (p.bonus || p.credits + ' credits');
+    const engines = p.engines >= 10
+      ? 'All AI engines work together'
+      : p.engines + ' AI engines per answer';
+    return [renew, engines, 'If one engine is down, others answer', 'Report Lens · 50+ languages'];
+  };
   $('#pageView').innerHTML = `
     <div class="page-head"><h2><i class="bi bi-stars"></i> Pricing</h2>
       <button class="btn-gold small" id="pageCloseBtn">Back to chat</button></div>
@@ -568,12 +577,9 @@ async function renderPricing() {
       ${plans.map(([id, p]) => `
         <div class="price-card ${id === current ? 'current' : ''}">
           <h3>${esc(p.label)}</h3>
-          <div class="price">${p.priceInr ? '₹' + p.priceInr : 'Free'}</div>
+          <div class="price">${p.priceInr ? '₹' + p.priceInr.toLocaleString('en-IN') : 'Free'}</div>
           <ul>
-            <li><b>${p.credits}</b> credits</li>
-            <li>Report Lens access</li>
-            <li>50+ languages</li>
-            <li>${id === 'pro' ? 'Medi AI Collective — 2 engines per answer' : 'All 10 AI engines'}</li>
+            ${featureLine(id, p).map((f) => `<li>${esc(f)}</li>`).join('')}
           </ul>
           ${id === 'free' ? '<button class="btn-ghost" disabled>Default plan</button>'
             : id === current ? '<button class="btn-gold" disabled>Current plan</button>'
@@ -586,7 +592,7 @@ async function renderPricing() {
         <input id="couponInput" type="text" placeholder="Enter coupon code" autocomplete="off">
         <button class="btn-gold small" id="couponBtn">Redeem</button>
       </div>
-      <p class="modal-hint" id="couponMsg">Credit coupons add credits instantly; discount coupons apply at checkout.</p>
+      <p class="modal-hint" id="couponMsg">Credit coupons add credits instantly; discount coupons apply at checkout. One-time packs never expire — subscription credits refresh weekly.</p>
     </div>`;
 }
 
@@ -598,7 +604,7 @@ function renderAbout() {
       <h3>Your multilingual health companion</h3>
       <div class="md">
         <p>Medi AI helps you understand health questions and medical reports in simple language, in <b>50+ languages</b> — all 22 official Indian languages included.</p>
-        <p>It combines <b>multiple AI engines</b> with a curated medical knowledge base, automatically falls back if one engine is busy, and detects emergencies. Pro plans get the <b>Medi AI Collective</b> — two engines working together on every answer.</p>
+        <p>It combines <b>multiple AI engines</b> with a curated medical knowledge base, automatically falls back if one engine is busy, and detects emergencies. Higher plans get more engines working together on every answer.</p>
         <p><b>Features:</b> medical chat, Report Lens (photo → explanation), voice input, saved reports, plans & credits, coupons, dashboard, admin tools and a WhatsApp bot.</p>
         <p><b>Important:</b> Medi AI provides general information, not a medical diagnosis. In an emergency, call <b>112</b> (India) or your local emergency number.</p>
       </div>
