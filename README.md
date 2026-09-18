@@ -16,9 +16,14 @@ A multilingual medical AI assistant web app (PWA-ready):
 
 ```bash
 npm install
-GROQ_API_KEY=your-key node server.js
+DATABASE_URL=postgres://user:pass@localhost/medi GROQ_API_KEY=your-key node server.js
 # open http://localhost:3000
 ```
+
+You need a PostgreSQL database (any provider). The easiest free option is
+[Neon](https://neon.tech) — create a project, copy the connection string
+into `DATABASE_URL`. Users sign up with **email + username + password** and
+can log in with either email or username.
 
 The first user you sign up becomes the **admin** and can change plans from the Admin panel in the sidebar.
 
@@ -27,10 +32,10 @@ The first user you sign up becomes the **admin** and can change plans from the A
 1. Push this repo to GitHub.
 2. Render → New → **Web Service** → connect the repo.
 3. Build command: `npm install`  Start command: `npm start`
-4. Add environment variables (at minimum `SESSION_SECRET` and one AI key — see `.env.example`).
+4. Add environment variables (at minimum `SESSION_SECRET`, `DATABASE_URL` — a free Neon Postgres connection string — and one AI key; see `.env.example`).
 5. Deploy. Done.
 
-Note: Render's free tier uses an ephemeral disk — the SQLite database (users, chats) resets on each redeploy. For persistence, upgrade the plan or attach a disk later.
+All data lives in PostgreSQL (Neon), so users, chats, reports and payments survive every redeploy.
 
 ## API keys
 
@@ -50,7 +55,7 @@ The AdSense loader script is already included in `public/index.html` (publisher 
 ```
 server.js                 Express app: auth, chats, credits, admin
 ai.js                     10-provider AI engine with fallback
-db.js                     SQLite: users, chats, messages, medical knowledge base
+db.js                     PostgreSQL: users, chats, messages, medical knowledge base
 public/index.html         App shell (AdSense script in <head>)
 public/style.css          Luxe dark/gold theme
 public/app.js             Client logic: chat, OCR, voice, settings, admin
