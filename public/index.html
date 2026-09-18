@@ -40,9 +40,11 @@
         <button id="tabSignup" class="auth-tab">Sign up</button>
       </div>
       <form id="authForm" autocomplete="off">
-        <label>Username</label>
+        <label id="emailLabel">Email</label>
+        <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" required>
+        <label id="usernameLabel">Username</label>
         <input id="authUsername" type="text" placeholder="e.g. rahul2001" autocomplete="username" required>
-        <label>Password</label>
+        <label id="passwordLabel">Password</label>
         <input id="authPassword" type="password" placeholder="At least 6 characters" autocomplete="current-password" required>
         <button type="submit" class="btn-gold" id="authSubmit">Log in</button>
       </form>
