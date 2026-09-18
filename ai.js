@@ -184,23 +184,25 @@ async function callProvider(p, messages) {
 }
 
 /**
- * Multi-engine answer ("Collective"): two different providers answer
- * the same question in parallel, then a synthesis call merges both
- * drafts into one final, safer answer. Provider identities are never
- * exposed to the client — only the engine count.
+ * Multi-engine answer ("Collective"): up to `count` different providers
+ * answer the same question in parallel, then a synthesis call merges
+ * the drafts into one final, safer answer. If some engines fail, the
+ * remaining ones still answer. Provider identities are never exposed
+ * to the client — only the engine count.
  */
-async function ensembleChat(messages) {
+async function ensembleChat(messages, count) {
   const avail = PROVIDERS.filter((p) => process.env[p.keyEnv]);
   if (!avail.length) {
     const err = new Error('No AI provider keys configured. Add at least one key (e.g. GROQ_API_KEY) in your environment settings.');
     err.code = 'NO_KEYS';
     throw err;
   }
-  if (avail.length === 1) {
-    const r = await chat(avail[0].id, messages);
+  const want = Math.max(1, Number(count) || 1);
+  const picks = avail.slice(0, want);
+  if (picks.length === 1) {
+    const r = await chat(picks[0].id, messages);
     return { text: r.text, engines: 1 };
   }
-  const picks = [avail[0], avail[1]];
   const results = await Promise.allSettled(picks.map((p) => callProvider(p, messages)));
   const texts = results.filter((r) => r.status === 'fulfilled' && r.value).map((r) => r.value);
   if (!texts.length) {
@@ -208,22 +210,20 @@ async function ensembleChat(messages) {
     return { text: r.text, engines: 1 };
   }
   if (texts.length === 1) return { text: texts[0], engines: 1 };
+  const drafts = texts.map((t, i) => 'DRAFT ' + (i + 1) + ':\n' + t.slice(0, 4000)).join('\n\n');
   const synthPrompt = [
-    'Combine the two independent draft answers below into ONE final answer for the patient.',
+    'Combine the independent draft answers below into ONE final answer for the patient.',
     'Rules:',
-    '1. Use the best of both drafts and remove repetition.',
+    '1. Use the best of all drafts and remove repetition.',
     '2. If the drafts disagree, keep the more cautious, safer advice.',
     '3. Keep practical self-care tips and safe over-the-counter medicine suggestions (with a check-with-your-doctor note) when they help.',
-    '4. Keep any emergency warning if either draft has one.',
+    '4. Keep any emergency warning if any draft has one.',
     '5. Obey the language rule from the system instructions above.',
     '6. Never mention drafts, engines, AI systems or how this answer was produced.',
   ].join('\n');
-  const finalMessages = [
-    ...messages,
-    { role: 'user', content: synthPrompt + '\n\nDRAFT 1:\n' + texts[0].slice(0, 4000) + '\n\nDRAFT 2:\n' + texts[1].slice(0, 4000) },
-  ];
+  const finalMessages = [...messages, { role: 'user', content: synthPrompt + '\n\n' + drafts }];
   const final = await chat(picks[0].id, finalMessages);
-  return { text: final.text, engines: 2 };
+  return { text: final.text, engines: texts.length };
 }
 
 /**
