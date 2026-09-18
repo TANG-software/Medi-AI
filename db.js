@@ -50,6 +50,41 @@ CREATE TABLE IF NOT EXISTS kb (
   advice TEXT NOT NULL,
   severity TEXT NOT NULL DEFAULT 'self-care'
 );
+CREATE TABLE IF NOT EXISTS reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  title TEXT NOT NULL,
+  extracted TEXT NOT NULL,
+  analysis TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_reports_user ON reports(user_id, id DESC);
+CREATE TABLE IF NOT EXISTS coupons (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT UNIQUE NOT NULL COLLATE NOCASE,
+  percent_off INTEGER NOT NULL DEFAULT 0,
+  credits INTEGER NOT NULL DEFAULT 0,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS problems (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  subject TEXT NOT NULL,
+  message TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  plan TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  coupon TEXT,
+  status TEXT NOT NULL DEFAULT 'created',
+  razorpay_order_id TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 
 /* ------------------------------------------------------------------ */
@@ -193,11 +228,92 @@ function searchKB(text, limit = 3) {
   return [...seen.values()].sort((a, b) => b.score - a.score).slice(0, limit).map((x) => x.row);
 }
 
+/* ------------------------- reports ------------------------- */
+const qReports = {
+  list: db.prepare('SELECT id, title, created_at FROM reports WHERE user_id = ? ORDER BY id DESC LIMIT 100'),
+  get: db.prepare('SELECT * FROM reports WHERE id = ? AND user_id = ?'),
+  create: db.prepare('INSERT INTO reports (user_id, title, extracted, analysis) VALUES (?,?,?,?)'),
+  del: db.prepare('DELETE FROM reports WHERE id = ? AND user_id = ?'),
+  count: db.prepare('SELECT COUNT(*) AS c FROM reports WHERE user_id = ?'),
+};
+function listReports(userId) { return qReports.list.all(userId); }
+function getReport(id, userId) { return qReports.get.get(id, userId) || null; }
+function createReport(userId, title, extracted, analysis) {
+  const info = qReports.create.run(userId, String(title).slice(0, 80), extracted, analysis);
+  return qReports.get.get(info.lastInsertRowid, userId);
+}
+function deleteReport(id, userId) { return !!qReports.del.run(id, userId).changes; }
+
+/* ------------------------- coupons ------------------------- */
+const qCoupons = {
+  find: db.prepare('SELECT * FROM coupons WHERE code = ? AND active = 1'),
+  list: db.prepare('SELECT * FROM coupons ORDER BY id DESC LIMIT 200'),
+  create: db.prepare('INSERT INTO coupons (code, percent_off, credits) VALUES (?,?,?)'),
+  del: db.prepare('DELETE FROM coupons WHERE id = ?'),
+};
+function findCoupon(code) { return qCoupons.find.get(String(code || '').trim()) || null; }
+function listCoupons() { return qCoupons.list.all(); }
+function createCoupon(code, percentOff, credits) {
+  try { qCoupons.create.run(String(code).trim().toUpperCase(), Math.max(0, Math.min(90, percentOff | 0)), Math.max(0, credits | 0)); return true; }
+  catch (e) { return false; }
+}
+function deleteCoupon(id) { return !!qCoupons.del.run(id).changes; }
+
+/* ------------------------- problems ------------------------- */
+const qProblems = {
+  create: db.prepare('INSERT INTO problems (user_id, subject, message) VALUES (?,?,?)'),
+  list: db.prepare('SELECT p.*, u.username FROM problems p LEFT JOIN users u ON u.id = p.user_id ORDER BY p.id DESC LIMIT 200'),
+  setStatus: db.prepare('UPDATE problems SET status = ? WHERE id = ?'),
+};
+function createProblem(userId, subject, message) { return !!qProblems.create.run(userId, String(subject).slice(0, 120), String(message).slice(0, 4000)).changes; }
+function listProblems() { return qProblems.list.all(); }
+function setProblemStatus(id, status) { return !!qProblems.setStatus.run(status, id).changes; }
+
+/* ------------------------- orders ------------------------- */
+const qOrders = {
+  create: db.prepare('INSERT INTO orders (user_id, plan, amount, coupon, razorpay_order_id) VALUES (?,?,?,?,?)'),
+  byRzp: db.prepare('SELECT * FROM orders WHERE razorpay_order_id = ?'),
+  setStatus: db.prepare('UPDATE orders SET status = ? WHERE id = ?'),
+};
+function createOrder(userId, plan, amount, coupon, rzpId) {
+  const info = qOrders.create.run(userId, plan, amount, coupon || null, rzpId || null);
+  return info.lastInsertRowid;
+}
+function getOrderByRzp(rzpId) { return qOrders.byRzp.get(rzpId) || null; }
+function setOrderStatus(id, status) { return !!qOrders.setStatus.run(status, id).changes; }
+
+/* ------------------------- stats ------------------------- */
+function userStats(userId) {
+  return {
+    chats: db.prepare('SELECT COUNT(*) AS c FROM chats WHERE user_id = ?').get(userId).c,
+    reports: qReports.count.get(userId).c,
+    problems: db.prepare('SELECT COUNT(*) AS c FROM problems WHERE user_id = ?').get(userId).c,
+    memberSince: db.prepare('SELECT created_at FROM users WHERE id = ?').get(userId).created_at,
+  };
+}
+
+/* ------------------------- knowledge base (admin) ------------------------- */
+const qKb = {
+  list: db.prepare('SELECT * FROM kb ORDER BY id DESC LIMIT 500'),
+  add: db.prepare('INSERT INTO kb (topic, symptoms, summary, advice, severity) VALUES (?,?,?,?,?)'),
+  del: db.prepare('DELETE FROM kb WHERE id = ?'),
+};
+function listKB() { return qKb.list.all(); }
+function addKB(topic, symptoms, summary, advice, severity) {
+  return !!qKb.add.run(String(topic).slice(0, 120), String(symptoms).slice(0, 400), String(summary).slice(0, 800), String(advice).slice(0, 800), severity).changes;
+}
+function deleteKB(id) { return !!qKb.del.run(id).changes; }
+
 module.exports = {
   db,
   userCount, userExists, createUser, getUserByUsername, getUser, verifyPassword,
   deductCredits, setPlan, setPrefs,
   listChats, getChat, createChat, getMessages, getRecentMessages, addMessage,
   touchChat, renameChat, deleteChat,
-  searchKB,
+  searchKB, listKB, addKB, deleteKB,
+  listReports, getReport, createReport, deleteReport,
+  findCoupon, listCoupons, createCoupon, deleteCoupon,
+  createProblem, listProblems, setProblemStatus,
+  createOrder, getOrderByRzp, setOrderStatus,
+  userStats,
 };
