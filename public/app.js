@@ -236,13 +236,22 @@ function buildWelcome() {
 }
 
 /* ------------------------------ messages ------------------------------ */
-function buildMsg(role, content, meta) {
+function buildMsg(role, content, meta, sources) {
   const wrap = document.createElement('div');
   wrap.className = 'msg ' + role;
   const icon = role === 'user' ? 'bi-person' : 'bi-activity';
+  let srcHtml = '';
+  if (role === 'ai' && sources && sources.length) {
+    srcHtml = '<div class="sources">' + sources.map((s) => {
+      const label = '\u2714 ' + esc(s.topic) + ' \u00b7 ' + esc(s.source || 'Verified');
+      return s.sourceUrl
+        ? `<a class="src-badge" href="${esc(s.sourceUrl)}" target="_blank" rel="noopener">${label}<i class="bi bi-box-arrow-up-right"></i></a>`
+        : `<span class="src-badge">${label}</span>`;
+    }).join('') + '</div>';
+  }
   wrap.innerHTML = `
-    <div class="msg-ava"><i class="bi ${icon}"></i></div>
-    <div class="bubble">${md(content)}${role === 'ai' ? `<button class="speak-btn" title="Read aloud"><i class="bi bi-volume-up-fill"></i></button>` : ''}${meta ? `<span class="meta">${esc(meta)}</span>` : ''}</div>`;
+    <div class="msg-ava" aria-hidden="true"><i class="bi ${icon}"></i></div>
+    <div class="bubble">${md(content)}${role === 'ai' ? `<button class="speak-btn" title="Read aloud" aria-label="Read this answer aloud"><i class="bi bi-volume-up-fill"></i></button>` : ''}${srcHtml}${meta ? `<span class="meta">${esc(meta)}</span>` : ''}</div>`;
   const sb = wrap.querySelector('.speak-btn');
   if (sb) sb.addEventListener('click', () => speak(content, sb));
   return wrap;
@@ -254,13 +263,34 @@ function stopSpeaking() {
   if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   if (speakingBtn) { speakingBtn.classList.remove('speaking'); speakingBtn = null; }
 }
+/* Pick the best available voice for a language: exact match first, then same
+   language family; prefer natural/neural/Google voices over robotic ones. */
 function pickVoice(langCode) {
   try {
     const voices = window.speechSynthesis.getVoices() || [];
-    return voices.find((v) => v.lang === langCode) ||
-           voices.find((v) => v.lang && langCode && v.lang.split('-')[0] === langCode.split('-')[0]) ||
-           null;
+    const score = (v) => {
+      if (!v.lang) return -1;
+      if (v.lang === langCode) var s = 4;
+      else if (v.lang.split('-')[0] === String(langCode).split('-')[0]) s = 2;
+      else return -1;
+      if (/natural|neural|premium|enhanced/i.test(v.name)) s += 3;
+      if (/google|microsoft/i.test(v.name)) s += 2;
+      if (v.localService) s += 1;
+      if (v.default) s += 1;
+      return s;
+    };
+    let best = null, bestScore = -1;
+    for (const v of voices) {
+      const sc = score(v);
+      if (sc > bestScore) { best = v; bestScore = sc; }
+    }
+    return bestScore >= 0 ? best : null;
   } catch (_) { return null; }
+}
+/* Warm the voice list early — many mobile browsers load it lazily. */
+if ('speechSynthesis' in window) {
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 }
 function speak(text, btn) {
   if (!('speechSynthesis' in window)) return toast('Reading aloud is not supported in this browser.');
@@ -349,7 +379,7 @@ async function send(textOverride) {
     const t = $('#typingMsg');
     if (t) t.remove();
     if (r.emergency) showEmergencyBanner();
-    $('#messages').appendChild(buildMsg('ai', r.reply, r.engines > 1 ? 'Medi AI · Multi-engine answer' : 'Medi AI'));
+    $('#messages').appendChild(buildMsg('ai', r.reply, r.engines > 1 ? 'Medi AI · Multi-engine answer' : 'Medi AI', r.kbTopics));
     state.chatId = r.chatId;
     updateCredits(r.credits);
     state.user.credits = r.credits;
@@ -462,6 +492,68 @@ $('#ocrAnalyze').addEventListener('click', () => {
   if (!t) return toast('No text to analyze.');
   $('#ocrModal').classList.add('hidden');
   send('Please analyze this medical report and explain it simply:\n\n' + t);
+});
+
+/* ------------------------------ Camera scan ------------------------------ */
+/* One tap on the camera button opens a live camera popup. Capture a photo of
+   a medical report, and the text is read (OCR) right on the device. */
+let camStream = null, camFacing = 'environment';
+async function openCamera() {
+  if (state.mode !== 'report') setMode('report');
+  $('#cameraModal').classList.remove('hidden');
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: camFacing }, width: { ideal: 1920 } }, audio: false,
+    });
+    $('#cameraVideo').srcObject = camStream;
+  } catch (e) {
+    closeCamera();
+    /* Fallback: open the native camera app through the file picker */
+    const fi = $('#fileInput');
+    fi.setAttribute('capture', camFacing);
+    fi.click();
+    setTimeout(() => fi.removeAttribute('capture'), 2000);
+    toast('Live camera unavailable — opening your photo app instead.');
+  }
+}
+function closeCamera() {
+  if (camStream) { camStream.getTracks().forEach((t) => t.stop()); camStream = null; }
+  const v = $('#cameraVideo');
+  if (v) v.srcObject = null;
+  $('#cameraModal').classList.add('hidden');
+}
+function closeCameraKeep() {
+  if (camStream) { camStream.getTracks().forEach((t) => t.stop()); camStream = null; }
+  const v = $('#cameraVideo');
+  if (v) v.srcObject = null;
+}
+$('#cameraBtn').addEventListener('click', openCamera);
+$('#cameraClose').addEventListener('click', closeCamera);
+$('#cameraSwitch').addEventListener('click', () => {
+  camFacing = camFacing === 'environment' ? 'user' : 'environment';
+  if (camStream) { closeCameraKeep(); openCamera(); }
+});
+$('#cameraCapture').addEventListener('click', async () => {
+  const video = $('#cameraVideo');
+  if (!video.videoWidth) return toast('Camera is still starting — try again in a second.');
+  const canvas = $('#cameraCanvas');
+  const scale = Math.min(1, 1600 / video.videoWidth);
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+  closeCamera();
+  toast('Reading text from your photo…', 8000);
+  try {
+    const lang = OCR_LANG[state.user.language] || 'eng';
+    const result = await Tesseract.recognize(dataUrl, lang + '+eng', { logger: () => {} });
+    const text = (result.data.text || '').trim();
+    if (!text) { toast('No readable text found — try again with more light and steadier hands.'); return; }
+    $('#ocrText').value = text.slice(0, 8000);
+    $('#ocrModal').classList.remove('hidden');
+  } catch (err) {
+    toast('Could not read that photo: ' + err.message);
+  }
 });
 
 /* ------------------------------ settings ------------------------------ */
@@ -815,6 +907,8 @@ async function loadAdminKnowledge() {
         </select>
         <textarea id="kbSummary" rows="2" placeholder="Summary" required maxlength="800"></textarea>
         <textarea id="kbAdvice" rows="2" placeholder="Advice" required maxlength="800"></textarea>
+        <input id="kbSource" placeholder="Source name (optional, e.g. WHO / NHS)" maxlength="120">
+        <input id="kbSourceUrl" type="url" placeholder="Source link (optional, https://...)" maxlength="300">
         <button class="btn-gold small" type="submit">Add topic</button>
       </form>
       <div class="admin-list">
@@ -908,6 +1002,7 @@ $('#adminModal').addEventListener('submit', async (e) => {
           topic: $('#kbTopic').value, symptoms: $('#kbSymptoms').value,
           summary: $('#kbSummary').value, advice: $('#kbAdvice').value,
           severity: $('#kbSeverity').value,
+          source: $('#kbSource').value.trim(), sourceUrl: $('#kbSourceUrl').value.trim(),
         },
       });
       toast('Topic added to knowledge base');
