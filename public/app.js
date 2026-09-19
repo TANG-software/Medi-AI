@@ -502,9 +502,12 @@ $('#adminBtn').addEventListener('click', async () => {
       const row = document.createElement('div');
       row.className = 'admin-user';
       row.innerHTML = `
-        <i class="bi bi-person"></i><span class="name">${esc(u.username)}${u.is_admin ? ' · admin' : ''}</span>
-        <span style="color:var(--text-dim)">${u.credits}cr</span>
-        <select data-user="${esc(u.username)}">
+        <i class="bi bi-person-circle"></i>
+        <span class="name">
+          <b>${esc(u.username)}</b>${u.is_admin ? ' <span style="color:var(--gold-soft)">· admin</span>' : ''}
+          <br><small style="color:var(--text-dim)">${esc(u.email || 'no email')} · ${u.credits} credits · joined ${esc(u.created_at || '')}</small>
+        </span>
+        <select data-user="${esc(u.username)}" title="Change plan">
           ${Object.keys(state.plans).map((p) =>
             `<option value="${p}" ${p === u.plan ? 'selected' : ''}>${p}</option>`).join('')}
         </select>`;
