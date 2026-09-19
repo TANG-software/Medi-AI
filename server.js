@@ -292,6 +292,11 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     res.json({
       ok: true, chatId: chat.id, reply: result.text,
       engines: result.engines || 1, credits, emergency, reportId,
+      kbTopics: (kbHits || []).map((h) => ({
+        topic: h.topic, severity: h.severity,
+        source: h.source || 'Medi AI Knowledge Base',
+        sourceUrl: h.source_url || null,
+      })),
     });
   } catch (e) {
     console.error('[chat] ' + e.message);
@@ -480,12 +485,12 @@ app.get('/api/admin/knowledge', requireAuth, async (req, res) => {
 
 app.post('/api/admin/knowledge', requireAuth, async (req, res) => {
   if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
-  const { topic, symptoms, summary, advice, severity } = req.body || {};
+  const { topic, symptoms, summary, advice, severity, source, sourceUrl } = req.body || {};
   if (!topic || !symptoms || !summary || !advice) {
     return res.status(400).json({ error: 'Topic, symptoms, summary and advice are required.' });
   }
   const sev = ['self-care', 'see-doctor', 'emergency'].includes(severity) ? severity : 'self-care';
-  const ok = await db.addKB(topic, symptoms, summary, advice, sev);
+  const ok = await db.addKB(topic, symptoms, summary, advice, sev, source, sourceUrl);
   ok ? res.json({ ok: true }) : res.status(400).json({ error: 'Could not add topic.' });
 });
 
