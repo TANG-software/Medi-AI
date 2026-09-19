@@ -471,6 +471,9 @@ function fillSettings() {
     `<option value="${l.code}" ${l.code === state.user.language ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
   $('#settingsPlan').textContent = state.user.planLabel;
   $('#settingsCredits').textContent = state.user.credits;
+  $('#settingsUsername').textContent = state.user.username;
+  $('#settingsEmail').textContent = state.user.email || 'no email on file';
+  $('#settingsSince').textContent = state.user.memberSince ? ('member since ' + state.user.memberSince) : '';
 }
 $('#settingsBtn').addEventListener('click', () => $('#settingsModal').classList.remove('hidden'));
 $('#settingsClose').addEventListener('click', () => $('#settingsModal').classList.add('hidden'));
