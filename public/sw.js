@@ -1,6 +1,6 @@
 /* Medi AI — service worker: app shell cache, API always network-first. */
 'use strict';
-const CACHE = 'medi-ai-v1';
+const CACHE = 'medi-ai-v2';
 const SHELL = ['/', '/style.css', '/app.js', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (e) => {
