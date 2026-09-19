@@ -627,7 +627,8 @@ async function openReport(id) {
 
 async function renderPricing() {
   const me = await api('/api/me');
-  const plans = Object.entries(me.plans || {});
+  const isAdmin = !!(me.user && me.user.isAdmin);
+  const plans = Object.entries(me.plans || {}).filter(([id, p]) => !p.hidden || isAdmin);
   const current = (me.user || {}).plan;
   const featureLine = (id, p) => {
     const renew = p.renewDays
