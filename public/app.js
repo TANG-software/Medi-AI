@@ -94,6 +94,8 @@ function showAuth() {
 
 function enterApp(user) {
   state.user = user;
+  /* Paid plans are ad-free (ads only on the Free plan). */
+  document.body.classList.toggle('no-ads', !!user.plan && user.plan !== 'free');
   $('#authView').classList.add('hidden');
   $('#appView').classList.remove('hidden');
   $('#userDisplayName').textContent = user.username;
@@ -774,6 +776,7 @@ function renderAbout() {
         <p>It combines <b>multiple AI engines</b> with a curated medical knowledge base, automatically falls back if one engine is busy, and detects emergencies. Higher plans get more engines working together on every answer.</p>
         <p><b>Features:</b> medical chat, Report Lens (photo → explanation), voice input, read-aloud answers, saved reports, plans & credits, coupons, dashboard, admin tools and a WhatsApp bot.</p>
         <p><b>Important:</b> Medi AI provides general information, not a medical diagnosis. In an emergency, call <b>112</b> (India) or your local emergency number.</p>
+        <p class="sponsor-note">Sponsored: <a class="sponsor-link" href="https://www.profitableratecpmnetwork.com/dcsirxet?key=7d7a112e8da8fcd974538848cf34cbe0" target="_blank" rel="noopener sponsored">health offers for our readers</a> — keeping Medi AI free.</p>
       </div>
     </div>`;
 }
