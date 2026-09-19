@@ -321,7 +321,7 @@ body {
   padding: 9px 12px; border: 0; border-radius: 10px;
   background: transparent; color: var(--text-dim);
   font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: left;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color  0.15s;
 }
 .nav-link i { font-size: 15px; }
 .nav-link:hover { background: var(--glass); color: var(--text); }
@@ -620,8 +620,15 @@ a.src-badge:hover { background: rgba(212, 175, 55, .18); }
 .ad-slot { margin: 10px auto; text-align: center; overflow: hidden; }
 .ad-banner { padding: 8px 0 12px; }
 .ad-banner iframe { border: 0; border-radius: 10px; }
-.ad-native { max-width: 728px; margin-left: auto; margin-right: auto; border-radius: 12px; }
-.ad-native iframe { border: 0; border-radius: 12px; max-width: 100%; }
+/* Native strip: HARD height cap — the ad can render several stacked cards,
+   so we lock the box to one small strip. overflow:hidden crops the rest.
+   Without this the ad grows unbounded and swallows the chat screen. */
+.ad-native {
+  max-width: 728px; margin: 4px auto 0; border-radius: 12px;
+  height: 132px; max-height: 132px; overflow: hidden; flex-shrink: 0;
+}
+.ad-native iframe { border: 0; border-radius: 12px; max-width: 100%; max-height: 132px; }
+.ad-native:empty { display: none; }
 body.no-ads .ad-slot { display: none !important; }
 .sponsor-note { margin-top: 14px; font-size: 12px; color: var(--text-dim); }
 .sponsor-link { color: var(--gold-soft); text-decoration: underline; }
