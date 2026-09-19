@@ -174,6 +174,13 @@ async function init() {
   await pool.query(SCHEMA);
   /* migrations for older databases */
   try { await pool.query('ALTER TABLE users ADD COLUMN email TEXT'); } catch (e) {}
+  /* persistent login sessions - survive restarts and redeploys */
+  await pool.query(`CREATE TABLE IF NOT EXISTS session (
+    sid TEXT PRIMARY KEY,
+    sess JSONB NOT NULL,
+    expire TIMESTAMPTZ NOT NULL
+  )`);
+  await pool.query('CREATE INDEX IF NOT EXISTS session_expire_idx ON session (expire)');
   const c = await q1('SELECT COUNT(*)::int AS c FROM kb');
   if (!c || c.c === 0) {
     for (const e of KB_SEED) {
