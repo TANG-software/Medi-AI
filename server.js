@@ -37,7 +37,8 @@ const PLANS = db.PLANS;
 
 /* --------------------------- languages ---------------------------- */
 const LANGUAGES = [
-  { code: 'en-IN', name: 'English' }, { code: 'hi-IN', name: 'हिन्दी — Hindi' },
+  { code: 'en-IN', name: 'English' }, { code: 'hi-Latn-IN', name: 'Hinglish — Roman Hindi + English mix' },
+  { code: 'hi-IN', name: 'हिन्दी — Hindi' },
   { code: 'bn-IN', name: 'বাংলা — Bengali' }, { code: 'ta-IN', name: 'தமிழ் — Tamil' },
   { code: 'te-IN', name: 'తెలుగు — Telugu' }, { code: 'mr-IN', name: 'मराठी — Marathi' },
   { code: 'gu-IN', name: 'ગુજરાતી — Gujarati' }, { code: 'kn-IN', name: 'ಕನ್ನಡ — Kannada' },
@@ -134,6 +135,7 @@ function publicUser(u) {
     id: u.id, username: u.username, email: u.email || undefined, plan: u.plan,
     planLabel: (PLANS[u.plan] || PLANS.free).label,
     credits: u.credits, language: u.language, isAdmin: !!u.is_admin,
+    memberSince: u.created_at ? String(u.created_at).slice(0, 10) : undefined,
   };
 }
 async function currentUser(req) {
