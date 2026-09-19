@@ -34,6 +34,9 @@ const PLANS = {
   pro:   { label: 'Pro',     credits: 30,  priceInr: 799,  engines: 10, renewDays: 7, weeks: 4 },
   pro2:  { label: 'Pro+',    credits: 79,  priceInr: 1999, engines: 10, renewDays: 7, weeks: 4 },
   elite: { label: 'Elite',   credits: 100, priceInr: 4999, engines: 10, renewDays: 7, weeks: 52 },
+  /* Hidden 1-rupee plan: visible only to admins on the Pricing page,
+     used to verify live payments cheaply before launching. */
+  test:  { label: 'Test',    credits: 1,   priceInr: 1,    engines: 2,  hidden: true },
 };
 
 const SCHEMA = `
