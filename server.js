@@ -20,7 +20,13 @@ const IS_PROD = process.env.NODE_ENV === 'production';
 
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '2mb' }));
-app.use(session({
+
+/* Login sessions live in Postgres, so users stay logged in even when the
+   server restarts, redeploys, or wakes up from idle sleep. */
+let PGStore = null;
+try { PGStore = require('connect-pg-simple')(session); } catch (e) { /* memory fallback */ }
+
+const sessionConfig = {
   secret: process.env.SESSION_SECRET || crypto.randomBytes(24).toString('hex'),
   resave: false,
   saveUninitialized: false,
@@ -28,9 +34,11 @@ app.use(session({
     httpOnly: true,
     sameSite: 'lax',
     secure: IS_PROD,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: 30 * 24 * 60 * 60 * 1000, // stay logged in for 30 days
   },
-}));
+};
+if (PGStore && db.pool) sessionConfig.store = new PGStore({ pool: db.pool });
+app.use(session(sessionConfig));
 
 /* ------------------------------ plans ------------------------------ */
 const PLANS = db.PLANS;
@@ -59,18 +67,24 @@ const LANGUAGES = [
   { code: 'ja-JP', name: '日本語 — Japanese' },
   { code: 'ko-KR', name: '한국어 — Korean' },
   { code: 'id-ID', name: 'Bahasa Indonesia' }, { code: 'ms-MY', name: 'Bahasa Melayu' },
-  { code: 'tr-TR', name: 'Türkçe — Turkish' }, { code: 'fa-IR', name: 'فارسی — Persian' },
+  { code: 'tr-TR', name: 'Türkçe — Turkish' },
+  { code: 'fa-IR', name: 'فارسی — Persian' },
   { code: 'vi-VN', name: 'Tiếng Việt — Vietnamese' },
   { code: 'th-TH', name: 'ไทย — Thai' },
   { code: 'fil-PH', name: 'Filipino' }, { code: 'nl-NL', name: 'Nederlands — Dutch' },
-  { code: 'pl-PL', name: 'Polski — Polish' }, { code: 'uk-UA', name: 'Українська — Ukrainian' },
-  { code: 'ro-RO', name: 'Română — Romanian' }, { code: 'el-GR', name: 'Ελληνικά — Greek' },
-  { code: 'he-IL', name: 'עברית — Hebrew' }, { code: 'sw-KE', name: 'Kiswahili — Swahili' },
-  { code: 'ha-NG', name: 'Hausa' }, { code: 'cs-CZ', name: 'Čeština — Czech' },
+  { code: 'pl-PL', name: 'Polski — Polish' },
+  { code: 'uk-UA', name: 'Українська — Ukrainian' },
+  { code: 'ro-RO', name: 'Română — Romanian' },
+  { code: 'el-GR', name: 'Ελληνικά — Greek' },
+  { code: 'he-IL', name: 'עברית — Hebrew' },
+  { code: 'sw-KE', name: 'Kiswahili — Swahili' },
+  { code: 'ha-NG', name: 'Hausa' },
+  { code: 'cs-CZ', name: 'Čeština — Czech' },
   { code: 'hu-HU', name: 'Magyar — Hungarian' },
   { code: 'sv-SE', name: 'Svenska — Swedish' },
   { code: 'no-NO', name: 'Norsk — Norwegian' },
-  { code: 'da-DK', name: 'Dansk — Danish' }, { code: 'fi-FI', name: 'Suomi — Finnish' },
+  { code: 'da-DK', name: 'Dansk — Danish' },
+  { code: 'fi-FI', name: 'Suomi — Finnish' },
 ];
 
 /* --------------------------- emergencies --------------------------- */
