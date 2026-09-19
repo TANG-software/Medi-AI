@@ -97,7 +97,7 @@
     <!-- Main -->
     <main class="main">
       <header class="topbar">
-        <button class="icon-btn" id="menuBtn" aria-label="Menu"><i class="bi bi-list"></i></button>
+        <button class="icon-btn" id="menuBtn" aria-label="Open menu"><i class="bi bi-list"></i></button>
         <div class="topbar-brand"><i class="bi bi-activity"></i> Medi <span>AI</span></div>
         <div class="topbar-right">
           <span class="mode-badge" id="modeBadge"><i class="bi bi-chat-heart"></i> Chat</span>
@@ -107,7 +107,7 @@
 
       <div id="pageView" class="page-view hidden"></div>
 
-      <div class="messages" id="messages">
+      <div class="messages" id="messages" role="log" aria-live="polite" aria-label="Conversation">
         <div class="welcome" id="welcome">
           <div class="welcome-icon"><i class="bi bi-activity"></i></div>
           <h1>How can I help your health today?</h1>
@@ -130,12 +130,13 @@
         </div>
 
         <div class="composer">
-          <button class="icon-btn" id="modeBtn" title="Select mode"><i class="bi bi-sliders"></i></button>
-          <button class="icon-btn" id="attachBtn" title="Add image / photo (Report Lens)"><i class="bi bi-plus-square"></i></button>
+          <button class="icon-btn" id="modeBtn" title="Select mode" aria-label="Select chat mode"><i class="bi bi-sliders"></i></button>
+          <button class="icon-btn" id="attachBtn" title="Add image / photo (Report Lens)" aria-label="Upload a report image"><i class="bi bi-plus-square"></i></button>
           <input type="file" id="fileInput" accept="image/*" hidden>
-          <textarea id="input" rows="1" placeholder="Ask Medi AI anything…" maxlength="8000"></textarea>
-          <button class="icon-btn" id="micBtn" title="Voice input"><i class="bi bi-mic"></i></button>
-          <button class="icon-btn send" id="sendBtn" title="Send"><i class="bi bi-arrow-up-circle-fill"></i></button>
+          <textarea id="input" rows="1" placeholder="Ask Medi AI anything…" maxlength="8000" aria-label="Type your health question"></textarea>
+          <button class="icon-btn" id="cameraBtn" title="Scan a report with camera" aria-label="Scan a medical report with your camera"><i class="bi bi-camera-fill"></i></button>
+          <button class="icon-btn" id="micBtn" title="Voice input" aria-label="Voice input"><i class="bi bi-mic"></i></button>
+          <button class="icon-btn send" id="sendBtn" title="Send" aria-label="Send message"><i class="bi bi-arrow-up-circle-fill"></i></button>
         </div>
         <p class="disclaimer">Medi AI provides general information — not a medical diagnosis. In emergencies call 112 (India).</p>
       </div>
@@ -143,9 +144,9 @@
   </section>
 
   <!-- ============ SETTINGS MODAL ============ -->
-  <div id="settingsModal" class="modal hidden">
+  <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
-      <div class="modal-head"><h3><i class="bi bi-gear"></i> Settings</h3><button class="icon-btn" id="settingsClose"><i class="bi bi-x-lg"></i></button></div>
+      <div class="modal-head"><h3><i class="bi bi-gear"></i> Settings</h3><button class="icon-btn" id="settingsClose" aria-label="Close settings"><i class="bi bi-x-lg"></i></button></div>
       <label>Reply language (50+ available)</label>
       <select id="langSelect"></select>
       <p class="modal-hint">Signed in as <b id="settingsUsername">…</b><br><small id="settingsEmail" style="opacity:.75"></small></p>
@@ -155,19 +156,34 @@
   </div>
 
   <!-- ============ OCR REVIEW MODAL ============ -->
-  <div id="ocrModal" class="modal hidden">
+  <div id="ocrModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card wide">
-      <div class="modal-head"><h3><i class="bi bi-file-earmark-medical"></i> Report Lens — extracted text</h3><button class="icon-btn" id="ocrClose"><i class="bi bi-x-lg"></i></button></div>
+      <div class="modal-head"><h3><i class="bi bi-file-earmark-medical"></i> Report Lens — extracted text</h3><button class="icon-btn" id="ocrClose" aria-label="Close report text editor"><i class="bi bi-x-lg"></i></button></div>
       <p class="modal-hint">Check the text below (you can fix OCR mistakes), then tap <b>Analyze</b>.</p>
       <textarea id="ocrText" rows="12"></textarea>
       <button class="btn-gold" id="ocrAnalyze"><i class="bi bi-magic"></i> Analyze report</button>
     </div>
   </div>
 
+  <!-- ============ CAMERA SCAN MODAL ============ -->
+  <div id="cameraModal" class="modal camera-modal hidden" role="dialog" aria-modal="true" aria-label="Scan a medical report with camera">
+    <div class="camera-wrap">
+      <video id="cameraVideo" autoplay playsinline muted></video>
+      <div class="camera-frame" aria-hidden="true"></div>
+      <div class="camera-popup"><i class="bi bi-file-earmark-medical"></i> Point at the report & tap the shutter — text is read on your device</div>
+      <div class="camera-actions">
+        <button class="icon-btn camera-side" id="cameraClose" aria-label="Close camera"><i class="bi bi-x-lg"></i></button>
+        <button class="camera-capture" id="cameraCapture" aria-label="Capture photo of the report"><i class="bi bi-camera-fill"></i></button>
+        <button class="icon-btn camera-side" id="cameraSwitch" aria-label="Switch camera"><i class="bi bi-arrow-repeat"></i></button>
+      </div>
+      <canvas id="cameraCanvas" hidden></canvas>
+    </div>
+  </div>
+
   <!-- ============ ADMIN MODAL ============ -->
-  <div id="adminModal" class="modal hidden">
+  <div id="adminModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card wide">
-      <div class="modal-head"><h3><i class="bi bi-shield-lock"></i> Admin</h3><button class="icon-btn" id="adminClose"><i class="bi bi-x-lg"></i></button></div>
+      <div class="modal-head"><h3><i class="bi bi-shield-lock"></i> Admin</h3><button class="icon-btn" id="adminClose" aria-label="Close admin panel"><i class="bi bi-x-lg"></i></button></div>
       <div class="admin-tabs">
         <button class="admin-tab active" data-tab="users">Users</button>
         <button class="admin-tab" data-tab="knowledge">Knowledge</button>
@@ -184,7 +200,7 @@
   </div>
 
   <!-- Toast -->
-  <div id="toast" class="toast hidden"></div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="/app.js"></script>
 </body>
