@@ -84,7 +84,7 @@
 
       <div class="sidebar-bottom">
         <div class="ad-slot ad-banner" aria-label="Advertisement">
-          <script type="text/javascript">
+          <script type="text/plain" data-adload>
             atOptions = {
               'key' : 'fe4c3bc5ef1e69c274d3113e2b623f38',
               'format' : 'iframe',
@@ -93,7 +93,7 @@
               'params' : {}
             };
           </script>
-          <script type="text/javascript" src="https://www.highrevenueformat.com/fe4c3bc5ef1e69c274d3113e2b623f38/invoke.js"></script>
+          <script type="text/plain" data-adload src="https://www.highrevenueformat.com/fe4c3bc5ef1e69c274d3113e2b623f38/invoke.js"></script>
         </div>
         <button class="sidebar-action" id="settingsBtn"><i class="bi bi-gear"></i> Settings</button>
         <button class="sidebar-action" id="adminBtn" style="display:none"><i class="bi bi-shield-lock"></i> Admin</button>
@@ -147,7 +147,7 @@
         </div>
         <p class="disclaimer">Medi AI provides general information — not a medical diagnosis. In emergencies call 112 (India).</p>
         <div class="ad-slot ad-native" aria-label="Advertisement">
-          <script async="async" data-cfasync="false" src="https://pl31418229.profitableratecpmnetwork.com/fa940a0db335a30fa5df6bd40b9b0ba9/invoke.js"></script>
+          <script type="text/plain" data-adload data-cfasync="false" src="https://pl31418229.profitableratecpmnetwork.com/fa940a0db335a30fa5df6bd40b9b0ba9/invoke.js"></script>
           <div id="container-fa940a0db335a30fa5df6bd40b9b0ba9"></div>
         </div>
       </div>
@@ -213,8 +213,26 @@
   <!-- Toast -->
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-  <!-- Adsterra: social bar (popunder removed — was hijacking clicks/tabs) -->
-  <script src="https://pl31418228.profitableratecpmnetwork.com/bb/cf/fd/bbcffd4ce4090674225c751f71f738f0.js"></script>
+
+  <!-- Ads activate only after login; never for paid plans (body.no-ads) -->
+  <script>
+  (function () {
+    function activateAds() {
+      if (document.body.classList.contains('no-ads')) return;
+      document.querySelectorAll('script[type="text/plain"][data-adload]').forEach(function (s) {
+        var n = document.createElement('script');
+        if (s.getAttribute('src')) n.setAttribute('src', s.getAttribute('src'));
+        else n.text = s.text;
+        s.parentNode.replaceChild(n, s);
+      });
+    }
+    var appView = document.getElementById('appView');
+    if (!appView || !appView.classList.contains('hidden')) { activateAds(); return; }
+    new MutationObserver(function (m, obs) {
+      if (!appView.classList.contains('hidden')) { obs.disconnect(); setTimeout(activateAds, 0); }
+    }).observe(appView, { attributes: true, attributeFilter: ['class'] });
+  })();
+  </script>
 
   <script src="/app.js"></script>
 </body>
