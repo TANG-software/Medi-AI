@@ -42,6 +42,15 @@ app.use(session(sessionConfig));
 
 /* ------------------------------ plans ------------------------------ */
 const PLANS = db.PLANS;
+/* v2.1 plan tuning — daily-credit plans (prices & engines unchanged):
+   Free 9/week · Plus 19/day ×7 days · Plus+ 25/day ×28 · Pro 39/day ×28 ·
+   Pro+ 59/day ×28 · Elite 119/day ×336 (28×12) days. */
+Object.assign(db.PLANS.free,  { credits: 9,   renewDays: 7 });
+Object.assign(db.PLANS.plus,  { credits: 19,  renewDays: 1, weeks: 1 });
+Object.assign(db.PLANS.plus2, { credits: 25,  renewDays: 1, weeks: 4 });
+Object.assign(db.PLANS.pro,   { credits: 39,  renewDays: 1, weeks: 4 });
+Object.assign(db.PLANS.pro2,  { credits: 59,  renewDays: 1, weeks: 4 });
+Object.assign(db.PLANS.elite, { credits: 119, renewDays: 1, weeks: 48 });
 
 /* --------------------------- languages ---------------------------- */
 const LANGUAGES = [
@@ -60,18 +69,25 @@ const LANGUAGES = [
   { code: 'sat-IN', name: 'ᱥᱟᱱᱛᱟᱲᱤ — Santali' },
   { code: 'ar-SA', name: 'العربية — Arabic' }, { code: 'es-ES', name: 'Español — Spanish' },
   { code: 'fr-FR', name: 'Français — French' }, { code: 'de-DE', name: 'Deutsch — German' },
-  { code: 'pt-BR', name: 'Português — Portuguese' }, { code: 'it-IT', name: 'Italiano — Italian' },
-  { code: 'ru-RU', name: 'Русский — Russian' }, { code: 'zh-CN', name: '中文 — Chinese (Simplified)' },
+  { code: 'pt-BR', name: 'Português — Portuguese' },
+  { code: 'it-IT', name: 'Italiano — Italian' },
+  { code: 'ru-RU', name: 'Русский — Russian' },
+  { code: 'zh-CN', name: '中文 — Chinese (Simplified)' },
   { code: 'ja-JP', name: '日本語 — Japanese' },
   { code: 'ko-KR', name: '한국어 — Korean' },
-  { code: 'id-ID', name: 'Bahasa Indonesia' }, { code: 'ms-MY', name: 'Bahasa Melayu' },
+  { code: 'id-ID', name: 'Bahasa Indonesia' },
+  { code: 'ms-MY', name: 'Bahasa Melayu' },
   { code: 'tr-TR', name: 'Türkçe — Turkish' }, { code: 'fa-IR', name: 'فارسی — Persian' },
   { code: 'vi-VN', name: 'Tiếng Việt — Vietnamese' },
-  { code: 'th-TH', name: 'ไทย — Thai' }, { code: 'fil-PH', name: 'Filipino' }, { code: 'nl-NL', name: 'Nederlands — Dutch' },
-  { code: 'pl-PL', name: 'Polski — Polish' }, { code: 'uk-UA', name: 'Українська — Ukrainian' },
-  { code: 'ro-RO', name: 'Română — Romanian' }, { code: 'el-GR', name: 'Ελληνικά — Greek' },
+  { code: 'th-TH', name: 'ไทย — Thai' },
+  { code: 'fil-PH', name: 'Filipino' }, { code: 'nl-NL', name: 'Nederlands — Dutch' },
+  { code: 'pl-PL', name: 'Polski — Polish' },
+  { code: 'uk-UA', name: 'Українська — Ukrainian' },
+  { code: 'ro-RO', name: 'Română — Romanian' },
+  { code: 'el-GR', name: 'Ελληνικά — Greek' },
   { code: 'he-IL', name: 'עברית — Hebrew' },
-  { code: 'sw-KE', name: 'Kiswahili — Swahili' }, { code: 'ha-NG', name: 'Hausa' },
+  { code: 'sw-KE', name: 'Kiswahili — Swahili' },
+  { code: 'ha-NG', name: 'Hausa' },
   { code: 'cs-CZ', name: 'Čeština — Czech' },
   { code: 'hu-HU', name: 'Magyar — Hungarian' },
   { code: 'sv-SE', name: 'Svenska — Swedish' },
