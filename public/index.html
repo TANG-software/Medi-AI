@@ -216,10 +216,29 @@
 
   <script src="/app.js"></script>
   <script>
-    /* Default the auth screen to Sign up (new users first; existing users
-       can switch to Log in with the tab). Runs after app.js registers its
-       tab listeners, so a programmatic click activates signup mode. */
+    /* Auth helpers: default the screen to Sign up, and make every error
+       message tell the user exactly what to do next. */
     try { document.getElementById('tabSignup').click(); } catch (e) {}
+    (function () {
+      var ae = document.getElementById('authError');
+      if (!ae) return;
+      function decorate() {
+        var t = (ae.textContent || '').trim();
+        if (!t || t.indexOf(' — ') > -1) return; /* already decorated */
+        var hint = '';
+        if (/already (taken|exists|registered)/i.test(t)) hint = 'this might be your account. Tap the "Log in" tab above to sign in instead.';
+        else if (/Wrong email\/username or password/i.test(t)) hint = 'you can sign in with your email OR your username. Check for typos and try again.';
+        else if (/Could not (log in|create account)/i.test(t)) hint = 'something went wrong on our side. Please try again in a minute.';
+        else if (/valid email/i.test(t)) hint = 'enter an email like name@example.com.';
+        else if (/at least 6/i.test(t)) hint = 'passwords need 6 or more characters.';
+        else if (/at least 3/i.test(t)) hint = 'pick a longer username (letters, numbers, dot, dash, underscore).';
+        else if (/only have letters/i.test(t)) hint = 'usernames can\'t contain spaces or symbols.';
+        if (!hint) return;
+        ae.textContent = t + ' — ' + hint.charAt(0).toUpperCase() + hint.slice(1);
+      }
+      new MutationObserver(decorate).observe(ae, { childList: true, characterData: true, subtree: true });
+      decorate();
+    })();
   </script>
 </body>
 </html>
