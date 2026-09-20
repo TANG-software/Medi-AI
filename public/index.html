@@ -240,5 +240,29 @@
       decorate();
     })();
   </script>
+  <script>
+    /* Pricing text for the v2.1 daily-credit plans (the server sends the new
+       plan values; this fixes the card wording without touching app.js). */
+    if (typeof renderPricing === 'function') {
+      var _origRenderPricing = renderPricing;
+      renderPricing = async function () {
+        await _origRenderPricing.apply(this, arguments);
+        var fixes = {
+          'Free': '9 credits every week',
+          'Plus': '19 credits daily for 7 days',
+          'Plus+': '25 credits daily for 28 days',
+          'Pro': '39 credits daily for 28 days',
+          'Pro+': '59 credits daily for 28 days',
+          'Elite': '119 credits daily for 28×12 days'
+        };
+        document.querySelectorAll('#pageView .price-card').forEach(function (card) {
+          var h = card.querySelector('h3'), li = card.querySelector('ul li');
+          if (h && li && fixes[h.textContent.trim()]) li.textContent = fixes[h.textContent.trim()];
+        });
+        var cm = document.getElementById('couponMsg');
+        if (cm) cm.textContent = 'Credit coupons add credits instantly; discount coupons apply at checkout. Free plan credits refresh weekly; paid plan credits refresh daily. Pay with UPI, cards, netbanking or wallets via Razorpay.';
+      };
+    }
+  </script>
 </body>
 </html>
