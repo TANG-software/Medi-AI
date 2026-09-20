@@ -31,17 +31,18 @@
       <p class="brand-sub">Your multilingual health companion</p>
       <div id="authError" class="auth-error hidden"></div>
       <div class="auth-tabs">
-        <button id="tabLogin" class="auth-tab active">Log in</button>
-        <button id="tabSignup" class="auth-tab">Sign up</button>
+        <button id="tabSignup" class="auth-tab active">Sign up</button>
+        <button id="tabLogin" class="auth-tab">Log in</button>
       </div>
+      <p class="auth-switch-note">Please log in if you already have an account on Medi AI.</p>
       <form id="authForm" autocomplete="off">
         <label id="emailLabel">Email</label>
         <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" required>
         <label id="usernameLabel">Username</label>
         <input id="authUsername" type="text" placeholder="e.g. rahul2001" autocomplete="username" required>
-        <label id="passwordLabel">Password</label>
+        <label id="passwordLabel">Create password</label>
         <input id="authPassword" type="password" placeholder="At least 6 characters" autocomplete="current-password" required>
-        <button type="submit" class="btn-gold" id="authSubmit">Log in</button>
+        <button type="submit" class="btn-gold" id="authSubmit">Create account</button>
       </form>
       <p class="auth-note">Not medical advice. In an emergency call 112 (India).</p>
     </div>
@@ -214,5 +215,11 @@
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="/app.js"></script>
+  <script>
+    /* Default the auth screen to Sign up (new users first; existing users
+       can switch to Log in with the tab). Runs after app.js registers its
+       tab listeners, so a programmatic click activates signup mode. */
+    try { document.getElementById('tabSignup').click(); } catch (e) {}
+  </script>
 </body>
 </html>
