@@ -69,30 +69,18 @@ const LANGUAGES = [
   { code: 'sat-IN', name: 'ᱥᱟᱱᱛᱟᱲᱤ — Santali' },
   { code: 'ar-SA', name: 'العربية — Arabic' }, { code: 'es-ES', name: 'Español — Spanish' },
   { code: 'fr-FR', name: 'Français — French' }, { code: 'de-DE', name: 'Deutsch — German' },
-  { code: 'pt-BR', name: 'Português — Portuguese' },
-  { code: 'it-IT', name: 'Italiano — Italian' },
-  { code: 'ru-RU', name: 'Русский — Russian' },
-  { code: 'zh-CN', name: '中文 — Chinese (Simplified)' },
-  { code: 'ja-JP', name: '日本語 — Japanese' },
-  { code: 'ko-KR', name: '한국어 — Korean' },
-  { code: 'id-ID', name: 'Bahasa Indonesia' },
-  { code: 'ms-MY', name: 'Bahasa Melayu' },
+  { code: 'pt-BR', name: 'Português — Portuguese' }, { code: 'it-IT', name: 'Italiano — Italian' },
+  { code: 'ru-RU', name: 'Русский — Russian' }, { code: 'zh-CN', name: '中文 — Chinese (Simplified)' },
+  { code: 'ja-JP', name: '日本語 — Japanese' }, { code: 'ko-KR', name: '한국어 — Korean' },
+  { code: 'id-ID', name: 'Bahasa Indonesia' }, { code: 'ms-MY', name: 'Bahasa Melayu' },
   { code: 'tr-TR', name: 'Türkçe — Turkish' }, { code: 'fa-IR', name: 'فارسی — Persian' },
-  { code: 'vi-VN', name: 'Tiếng Việt — Vietnamese' },
-  { code: 'th-TH', name: 'ไทย — Thai' },
-  { code: 'fil-PH', name: 'Filipino' }, { code: 'nl-NL', name: 'Nederlands — Dutch' },
-  { code: 'pl-PL', name: 'Polski — Polish' },
-  { code: 'uk-UA', name: 'Українська — Ukrainian' },
-  { code: 'ro-RO', name: 'Română — Romanian' },
-  { code: 'el-GR', name: 'Ελληνικά — Greek' },
-  { code: 'he-IL', name: 'עברית — Hebrew' },
-  { code: 'sw-KE', name: 'Kiswahili — Swahili' },
-  { code: 'ha-NG', name: 'Hausa' },
-  { code: 'cs-CZ', name: 'Čeština — Czech' },
-  { code: 'hu-HU', name: 'Magyar — Hungarian' },
-  { code: 'sv-SE', name: 'Svenska — Swedish' },
-  { code: 'no-NO', name: 'Norsk — Norwegian' },
-  { code: 'da-DK', name: 'Dansk — Danish' },
+  { code: 'vi-VN', name: 'Tiếng Việt — Vietnamese' }, { code: 'th-TH', name: 'ไทย — Thai' }, { code: 'fil-PH', name: 'Filipino' }, { code: 'nl-NL', name: 'Nederlands — Dutch' },
+  { code: 'pl-PL', name: 'Polski — Polish' }, { code: 'uk-UA', name: 'Українська — Ukrainian' },
+  { code: 'ro-RO', name: 'Română — Romanian' }, { code: 'el-GR', name: 'Ελληνικά — Greek' },
+  { code: 'he-IL', name: 'עברית — Hebrew' }, { code: 'sw-KE', name: 'Kiswahili — Swahili' },
+  { code: 'ha-NG', name: 'Hausa' }, { code: 'cs-CZ', name: 'Čeština — Czech' },
+  { code: 'hu-HU', name: 'Magyar — Hungarian' }, { code: 'sv-SE', name: 'Svenska — Swedish' },
+  { code: 'no-NO', name: 'Norsk — Norwegian' }, { code: 'da-DK', name: 'Dansk — Danish' },
   { code: 'fi-FI', name: 'Suomi — Finnish' },
 ];
 
@@ -199,9 +187,17 @@ app.post('/api/signup', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { username, password } = req.body || {};
-    const u = await db.getUserByIdentifier(String(username || ''));
-    if (!u || !db.verifyPassword(u, String(password || ''))) {
-      return res.status(401).json({ error: 'Wrong email/username or password.' });
+    const identifier = String(username || '').trim();
+    const u = await db.getUserByIdentifier(identifier);
+    if (!u) {
+      /* Tell the user exactly what went wrong instead of a generic message. */
+      const msg = identifier.includes('@')
+        ? 'No account found with that email. Log in with your username instead — and add your email under Settings so email login works next time.'
+        : 'No account found with that username. Check the spelling, or create a new account on the Sign up tab.';
+      return res.status(401).json({ error: msg });
+    }
+    if (!db.verifyPassword(u, String(password || ''))) {
+      return res.status(401).json({ error: 'Wrong password for ' + u.username + '. Passwords are case-sensitive — check for typos and try again.' });
     }
     req.session.uid = u.id;
     res.json({ ok: true, user: publicUser(u) });
@@ -228,9 +224,24 @@ app.get('/api/me', async (req, res) => {
 /* ---------------------------- settings ---------------------------- */
 app.post('/api/settings', requireAuth, async (req, res) => {
   const u = req.user;
-  const { language } = req.body || {};
+  const { language, email } = req.body || {};
   const lang = LANGUAGES.find((l) => l.code === language) || LANGUAGES.find((l) => l.code === u.language) || LANGUAGES[0];
-  const updated = await db.setPrefs(u.id, lang.code, null);
+  /* Optional email update — lets existing users (whose accounts were made
+     before the email field existed) attach an email so they can log in
+     with it. Empty string clears the email. */
+  let newEmail;
+  if (email !== undefined) {
+    const mail = String(email || '').trim().toLowerCase();
+    if (mail === '') {
+      newEmail = null;
+    } else {
+      if (!EMAIL_RE.test(mail)) return res.status(400).json({ error: 'Please enter a valid email address.' });
+      const other = await db.getUserByEmail(mail);
+      if (other && other.id !== u.id) return res.status(409).json({ error: 'That email is already used by another account.' });
+      newEmail = mail;
+    }
+  }
+  const updated = await db.setPrefs(u.id, lang.code, newEmail);
   res.json({ ok: true, user: publicUser(updated) });
 });
 

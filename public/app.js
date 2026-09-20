@@ -153,7 +153,9 @@ $('#authForm').addEventListener('submit', async (e) => {
     el.classList.remove('hidden');
   } finally {
     btn.disabled = false;
-    setAuthMode(authMode);
+    btn.textContent = authMode === 'login' ? 'Log in' : 'Create account';
+    /* NOTE: do NOT call setAuthMode() here — it hides #authError and the
+       user never sees why login failed. Only restore the button label. */
   }
 });
 
@@ -566,7 +568,7 @@ function fillSettings() {
   $('#settingsPlan').textContent = state.user.planLabel;
   $('#settingsCredits').textContent = state.user.credits;
   $('#settingsUsername').textContent = state.user.username;
-  $('#settingsEmail').textContent = state.user.email || 'no email on file';
+  $('#settingsEmail').value = state.user.email || '';
   $('#settingsSince').textContent = state.user.memberSince ? ('member since ' + state.user.memberSince) : '';
 }
 $('#settingsBtn').addEventListener('click', () => $('#settingsModal').classList.remove('hidden'));
@@ -575,7 +577,7 @@ $('#saveSettings').addEventListener('click', async () => {
   try {
     const r = await api('/api/settings', {
       method: 'POST',
-      body: { language: $('#langSelect').value },
+      body: { language: $('#langSelect').value, email: $('#settingsEmail').value.trim() },
     });
     state.user = Object.assign({}, state.user, r.user);
     $('#settingsModal').classList.add('hidden');

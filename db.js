@@ -21,12 +21,10 @@ async function q(text, params) { const r = await pool.query(text, params || []);
 async function q1(text, params) { const r = await pool.query(text, params || []); return r.rows[0] || null; }
 
 /* ------------------------------ plans ------------------------------
-   free : 5 credits refreshed every 14 days, 2 engines per answer
-   plus : ₹49 one-time 15 credits (10+5), 3 engines, no renewal
-   plus2: ₹99 one-time 32 credits (20+12), 4 engines, no renewal
-   pro  : ₹799  — 30 credits refilled weekly for 4 weeks, all engines
-   pro2 : ₹1999 — 79 credits refilled weekly for 4 weeks, all engines
-   elite: ₹4999 — 100 credits refilled weekly for 1 year, all engines */
+   NOTE: server.js applies the v2.1 daily-credit overrides on top of these
+   defaults at startup (free 9/week · plus 19/day ×7 · plus+ 25/day ×28 ·
+   pro 39/day ×28 · pro+ 59/day ×28 · elite 119/day ×336). Prices & engines
+   per answer: free 2 · plus 3 · plus+ 4 · pro tiers all available. */
 const PLANS = {
   free:  { label: 'Free',    credits: 5,   priceInr: 0,    engines: 2,  renewDays: 14 },
   plus:  { label: 'Plus',    credits: 15,  priceInr: 49,   engines: 3,  bonus: '10 + 5 bonus credits' },
@@ -345,8 +343,14 @@ async function setPlan(id, plan, credits, expiresAt, lastRefill) {
   return q1('SELECT * FROM users WHERE id = $1', [id]);
 }
 
-async function setPrefs(id, language, provider) {
-  await pool.query('UPDATE users SET language = $1, provider = $2 WHERE id = $3', [language, provider, id]);
+async function setPrefs(id, language, email) {
+  /* email === undefined → keep the current email (language-only update).
+     null → clear it, string → set it. */
+  if (email === undefined) {
+    await pool.query('UPDATE users SET language = $1 WHERE id = $2', [language, id]);
+  } else {
+    await pool.query('UPDATE users SET language = $1, email = $2 WHERE id = $3', [language, email, id]);
+  }
   return q1('SELECT * FROM users WHERE id = $1', [id]);
 }
 
