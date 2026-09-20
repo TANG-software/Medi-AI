@@ -60,25 +60,18 @@ const LANGUAGES = [
   { code: 'sat-IN', name: 'ᱥᱟᱱᱛᱟᱲᱤ — Santali' },
   { code: 'ar-SA', name: 'العربية — Arabic' }, { code: 'es-ES', name: 'Español — Spanish' },
   { code: 'fr-FR', name: 'Français — French' }, { code: 'de-DE', name: 'Deutsch — German' },
-  { code: 'pt-BR', name: 'Português — Portuguese' },
-  { code: 'it-IT', name: 'Italiano — Italian' },
-  { code: 'ru-RU', name: 'Русский — Russian' },
-  { code: 'zh-CN', name: '中文 — Chinese (Simplified)' },
+  { code: 'pt-BR', name: 'Português — Portuguese' }, { code: 'it-IT', name: 'Italiano — Italian' },
+  { code: 'ru-RU', name: 'Русский — Russian' }, { code: 'zh-CN', name: '中文 — Chinese (Simplified)' },
   { code: 'ja-JP', name: '日本語 — Japanese' },
   { code: 'ko-KR', name: '한국어 — Korean' },
   { code: 'id-ID', name: 'Bahasa Indonesia' }, { code: 'ms-MY', name: 'Bahasa Melayu' },
-  { code: 'tr-TR', name: 'Türkçe — Turkish' },
-  { code: 'fa-IR', name: 'فارسی — Persian' },
+  { code: 'tr-TR', name: 'Türkçe — Turkish' }, { code: 'fa-IR', name: 'فارسی — Persian' },
   { code: 'vi-VN', name: 'Tiếng Việt — Vietnamese' },
-  { code: 'th-TH', name: 'ไทย — Thai' },
-  { code: 'fil-PH', name: 'Filipino' }, { code: 'nl-NL', name: 'Nederlands — Dutch' },
-  { code: 'pl-PL', name: 'Polski — Polish' },
-  { code: 'uk-UA', name: 'Українська — Ukrainian' },
-  { code: 'ro-RO', name: 'Română — Romanian' },
-  { code: 'el-GR', name: 'Ελληνικά — Greek' },
+  { code: 'th-TH', name: 'ไทย — Thai' }, { code: 'fil-PH', name: 'Filipino' }, { code: 'nl-NL', name: 'Nederlands — Dutch' },
+  { code: 'pl-PL', name: 'Polski — Polish' }, { code: 'uk-UA', name: 'Українська — Ukrainian' },
+  { code: 'ro-RO', name: 'Română — Romanian' }, { code: 'el-GR', name: 'Ελληνικά — Greek' },
   { code: 'he-IL', name: 'עברית — Hebrew' },
-  { code: 'sw-KE', name: 'Kiswahili — Swahili' },
-  { code: 'ha-NG', name: 'Hausa' },
+  { code: 'sw-KE', name: 'Kiswahili — Swahili' }, { code: 'ha-NG', name: 'Hausa' },
   { code: 'cs-CZ', name: 'Čeština — Czech' },
   { code: 'hu-HU', name: 'Magyar — Hungarian' },
   { code: 'sv-SE', name: 'Svenska — Swedish' },
@@ -584,6 +577,16 @@ app.get('*', (req, res) => {
 (async () => {
   try {
     await db.init();
+    /* Safety migrations for older databases: add columns the current code
+       expects. Harmless no-ops when the columns already exist. */
+    for (const m of [
+      'ALTER TABLE users ADD COLUMN last_refill BIGINT',
+      'ALTER TABLE users ADD COLUMN plan_expires BIGINT',
+      'ALTER TABLE users ADD COLUMN created_at TIMESTAMPTZ DEFAULT now()',
+      'ALTER TABLE users ADD COLUMN language TEXT NOT NULL DEFAULT \'en-IN\'',
+      'ALTER TABLE users ADD COLUMN provider TEXT DEFAULT NULL',
+      'ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE',
+    ]) { try { await db.pool.query(m); } catch (e) {} }
     console.log('[medi-ai] database ready (PostgreSQL)');
   } catch (e) {
     console.error('[medi-ai] DATABASE ERROR: ' + e.message);
