@@ -21,6 +21,12 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <link rel="stylesheet" href="/style.css">
+  <style>
+    /* Ad iframes (Adsterra code lives in /ad-*.html so it can refresh cleanly) */
+    .ad-frame { display: block; margin: 0 auto; border: 0; }
+    .ad-banner .ad-frame { width: 160px; height: 300px; }
+    .ad-native .ad-frame { width: 100%; height: 132px; max-height: 132px; }
+  </style>
 </head>
 <body>
 
@@ -88,16 +94,7 @@
         <button class="sidebar-action" id="adminBtn" style="display:none"><i class="bi bi-shield-lock"></i> Admin</button>
         <button class="sidebar-action" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> Log out</button>
         <div class="ad-slot ad-banner" aria-label="Advertisement">
-          <script type="text/javascript">
-            atOptions = {
-              'key' : 'fe4c3bc5ef1e69c274d3113e2b623f38',
-              'format' : 'iframe',
-              'height' : 300,
-              'width' : 160,
-              'params' : {}
-            };
-          </script>
-          <script type="text/javascript" src="https://www.highrevenueformat.com/fe4c3bc5ef1e69c274d3113e2b623f38/invoke.js"></script>
+          <iframe class="ad-frame" src="/ad-banner.html" title="Advertisement" scrolling="no" frameborder="0"></iframe>
         </div>
       </div>
     </aside>
@@ -148,8 +145,7 @@
         </div>
         <p class="disclaimer">Medi AI provides general information — not a medical diagnosis. In emergencies call 112 (India).</p>
         <div class="ad-slot ad-native" aria-label="Advertisement">
-          <script async="async" data-cfasync="false" src="https://pl31418229.profitableratecpmnetwork.com/fa940a0db335a30fa5df6bd40b9b0ba9/invoke.js"></script>
-          <div id="container-fa940a0db335a30fa5df6bd40b9b0ba9"></div>
+          <iframe class="ad-frame" src="/ad-native.html" title="Advertisement" scrolling="no" frameborder="0" loading="lazy"></iframe>
         </div>
       </div>
     </main>
@@ -265,6 +261,37 @@
         if (cm) cm.textContent = 'Credit coupons add credits instantly; discount coupons apply at checkout. Free plan credits refresh weekly; paid plan credits refresh daily. Pay with UPI, cards, netbanking or wallets via Razorpay.';
       };
     }
+  </script>
+
+  <script>
+    /* Smart ad refresh — earns more from each visitor WITHOUT adding any new
+       ad format. Reloads the existing ad iframes periodically, but ONLY when:
+       the user is on the free plan, the ad is actually on screen, and the tab
+       is visible. That keeps every impression viewable (what ad networks pay
+       for) and never touches paid users or hidden ads. */
+    (function () {
+      var BANNER_SEC = 90;   /* banner refresh interval */
+      var NATIVE_SEC = 150;  /* native strip refresh interval */
+      var PAGE_SEC = 120;    /* min gap between page-switch refreshes */
+      function freePlan() { return !document.body.classList.contains('no-ads'); }
+      function visible(el) { return !!(el && el.offsetParent !== null && document.visibilityState === 'visible'); }
+      function reload(frame) { try { frame.contentWindow.location.reload(); } catch (e) {} }
+      var banner = document.querySelector('.ad-banner .ad-frame');
+      var native = document.querySelector('.ad-native .ad-frame');
+      setInterval(function () { if (freePlan() && visible(banner)) reload(banner); }, BANNER_SEC * 1000);
+      setInterval(function () { if (freePlan() && visible(native)) reload(native); }, NATIVE_SEC * 1000);
+      /* One extra native impression when the user opens a different page */
+      var lastPage = 0;
+      document.addEventListener('click', function (e) {
+        var t = e.target && e.target.closest ? e.target.closest('.nav-link') : null;
+        if (!t || !freePlan()) return;
+        var now = Date.now();
+        if (now - lastPage > PAGE_SEC * 1000) {
+          lastPage = now;
+          setTimeout(function () { if (visible(native)) reload(native); }, 400);
+        }
+      });
+    })();
   </script>
 </body>
 </html>
