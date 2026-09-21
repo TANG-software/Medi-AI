@@ -76,11 +76,15 @@ const LANGUAGES = [
   { code: 'tr-TR', name: 'Türkçe — Turkish' }, { code: 'fa-IR', name: 'فارسی — Persian' },
   { code: 'vi-VN', name: 'Tiếng Việt — Vietnamese' }, { code: 'th-TH', name: 'ไทย — Thai' }, { code: 'fil-PH', name: 'Filipino' }, { code: 'nl-NL', name: 'Nederlands — Dutch' },
   { code: 'pl-PL', name: 'Polski — Polish' }, { code: 'uk-UA', name: 'Українська — Ukrainian' },
-  { code: 'ro-RO', name: 'Română — Romanian' }, { code: 'el-GR', name: 'Ελληνικά — Greek' },
-  { code: 'he-IL', name: 'עברית — Hebrew' }, { code: 'sw-KE', name: 'Kiswahili — Swahili' },
+  { code: 'ro-RO', name: 'Română — Romanian' },
+  { code: 'el-GR', name: 'Ελληνικά — Greek' },
+  { code: 'he-IL', name: 'עברית — Hebrew' },
+  { code: 'sw-KE', name: 'Kiswahili — Swahili' },
   { code: 'ha-NG', name: 'Hausa' }, { code: 'cs-CZ', name: 'Čeština — Czech' },
-  { code: 'hu-HU', name: 'Magyar — Hungarian' }, { code: 'sv-SE', name: 'Svenska — Swedish' },
-  { code: 'no-NO', name: 'Norsk — Norwegian' }, { code: 'da-DK', name: 'Dansk — Danish' },
+  { code: 'hu-HU', name: 'Magyar — Hungarian' },
+  { code: 'sv-SE', name: 'Svenska — Swedish' },
+  { code: 'no-NO', name: 'Norsk — Norwegian' },
+  { code: 'da-DK', name: 'Dansk — Danish' },
   { code: 'fi-FI', name: 'Suomi — Finnish' },
 ];
 
@@ -114,7 +118,7 @@ function buildSystemPrompt({ mode, languageName, kbHits, emergency }) {
     '   - Hinglish (Hindi typed in English letters, like "sar dard hai") gets a natural Hinglish reply.',
     '   - Any Indian or world language gets a reply in that language\'s own script.',
     '   - If the user switches language mid-conversation, switch with them immediately.',
-    '   - Only when the message has no clear language, use the saved default: ' + languageName + ' .' 
+    '   - Only when the message has no clear language, use the saved default: ' + languageName + ' .'
   );
 
   if (mode === 'report') {
@@ -247,6 +251,77 @@ app.post('/api/settings', requireAuth, async (req, res) => {
   }
   const updated = await db.setPrefs(u.id, lang.code, newEmail);
   res.json({ ok: true, user: publicUser(updated) });
+});
+
+/* ---------------------------- text-to-speech ----------------------- */
+/* Premium voice engine (Sarvam AI TTS). The API key lives only in the
+   SARVAM_API_KEY environment variable — never in the browser. If the key
+   is missing the app automatically falls back to the phone's built-in
+   voice, so nothing breaks. */
+const TTS_LANGS = /^(bn|en|gu|hi|kn|ml|mr|od|pa|ta|te)-IN$/;
+const TTS_SPEAKERS = ['anushka', 'abhilash', 'diya', 'neel', 'maitreyi', 'varenya'];
+
+function ttsPct(value, max) {
+  const p = Math.max(-max, Math.min(max, Math.round(((Number(value) || 1) - 1) * 100 / 10) * 10));
+  return p === 0 ? 'default' : (p > 0 ? '+' : '') + p + '%';
+}
+
+function sarvamTts(payload) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(payload);
+    const req = https.request({
+      hostname: 'api.sarvam.ai', path: '/text-to-speech', method: 'POST',
+      headers: {
+        'api-subscription-key': process.env.SARVAM_API_KEY,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data),
+      },
+      timeout: 30000,
+    }, (res) => {
+      let buf = '';
+      res.setEncoding('utf8');
+      res.on('data', (c) => { buf += c; });
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(buf);
+          if (res.statusCode < 300 && json.audios && json.audios[0]) return resolve(json);
+          reject(new Error((json.error && json.error.message) || ('TTS HTTP ' + res.statusCode)));
+        } catch (e) { reject(new Error('TTS returned invalid JSON')); }
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('TTS request timed out')));
+    req.on('error', reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+app.get('/api/tts', requireAuth, (req, res) => {
+  res.json({ premium: !!process.env.SARVAM_API_KEY });
+});
+
+app.post('/api/tts', requireAuth, async (req, res) => {
+  try {
+    const u = req.user;
+    if (!process.env.SARVAM_API_KEY) return res.status(503).json({ error: 'Premium voice is not configured.' });
+    const { text, language, speaker, rate, pitch } = req.body || {};
+    const clean = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 3000);
+    if (!clean) return res.status(400).json({ error: 'Nothing to read.' });
+    let target = String(language || u.language || 'en-IN');
+    if (!TTS_LANGS.test(target)) target = 'en-IN'; // premium voices cover Indian languages + English
+    const json = await sarvamTts({
+      inputs: [clean],
+      target_language_code: target,
+      speaker: TTS_SPEAKERS.includes(speaker) ? speaker : 'anushka',
+      model: 'bulbul:v2',
+      speech_audio_rate: ttsPct(rate, 50),
+      pitch: ttsPct(pitch, 30),
+    });
+    res.json({ audio: json.audios[0], engine: 'premium', speaker: json.speaker || 'anushka' });
+  } catch (e) {
+    console.error('[tts] ' + e.message);
+    res.status(502).json({ error: 'Voice service failed: ' + e.message });
+  }
 });
 
 /* ------------------------------ chats ----------------------------- */
