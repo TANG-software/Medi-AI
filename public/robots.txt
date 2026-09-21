@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://medi-ai-zrn6.onrender.com/sitemap.xml
