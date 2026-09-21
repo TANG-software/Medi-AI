@@ -25,7 +25,42 @@
     /* Ad iframes (Adsterra code lives in /ad-*.html so it can refresh cleanly) */
     .ad-frame { display: block; margin: 0 auto; border: 0; }
     .ad-banner .ad-frame { width: 160px; height: 300px; }
-    .ad-native .ad-frame { width: 100%; height: 132px; max-height: 132px; }
+
+    /* Chat ad strip made slimmer so the chat area gets more room */
+    .ad-native { height: 100px; max-height: 100px; }
+    .ad-native .ad-frame { width: 100%; height: 100px; max-height: 100px; }
+
+    /* Chat history can never be squeezed out of the sidebar by the ad banner */
+    .sidebar-scroll { min-height: 190px; }
+
+    /* Mini popup ad card — appears briefly, never blocks the chat */
+    .ad-pop {
+      position: fixed; top: 64px; right: 8px; z-index: 45;
+      width: 178px; padding: 7px 9px 9px;
+      background: rgba(10, 10, 14, 0.97);
+      border: 1px solid rgba(212, 175, 55, 0.45); border-radius: 12px;
+      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.6);
+      animation: adpop-in 0.35s ease;
+    }
+    .ad-pop.hidden { display: none; }
+    @keyframes adpop-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+    .ad-pop-head { display: flex; justify-content: space-between; align-items: center; margin: 0 0 5px; }
+    .ad-pop-head span { font-size: 9px; letter-spacing: 1.6px; text-transform: uppercase; color: #9a8f76; }
+    .ad-pop-close { background: none; border: 0; color: #9a8f76; font-size: 13px; line-height: 1; padding: 2px 4px; cursor: pointer; }
+    .ad-pop .ad-frame { width: 160px; height: 300px; }
+    body.no-ads .ad-pop { display: none !important; }
+
+    /* Voice settings (read-aloud) inside the Settings modal */
+    .voice-setting { margin-top: 12px; border-top: 1px solid rgba(212, 175, 55, 0.18); padding-top: 12px; }
+    .voice-setting select { width: 100%; }
+    .voice-setting .row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin: 8px 0 2px; }
+    .voice-setting .row b { color: var(--gold-soft, #e6c96a); }
+    .voice-setting input[type="range"] { width: 100%; accent-color: #d4af37; }
+    .btn-ghost-gold {
+      width: 100%; margin-top: 10px; padding: 9px; cursor: pointer;
+      background: none; border: 1px solid rgba(212, 175, 55, 0.5); border-radius: 10px;
+      color: #d4af37; font-size: 13.5px;
+    }
   </style>
 </head>
 <body>
@@ -291,6 +326,157 @@
           setTimeout(function () { if (visible(native)) reload(native); }, 400);
         }
       });
+    })();
+  </script>
+  <script>
+    /* Mini popup ad: a small ad card that appears for a few seconds once a
+       minute. It NEVER blocks the chat — no clicks stolen, nothing paused.
+       AI responses and read-aloud keep running; it is only a picture that
+       politely says hello and leaves. */
+    (function () {
+      var EVERY_MS = 60000;   /* one popup per minute */
+      var SHOW_MS = 3000;     /* stays for 3 seconds */
+      var pop = document.createElement('div');
+      pop.id = 'adPop';
+      pop.className = 'ad-pop hidden';
+      pop.setAttribute('aria-label', 'Advertisement');
+      pop.innerHTML = '<div class="ad-pop-head"><span>Ad</span>' +
+        '<button class="ad-pop-close" aria-label="Close ad">✕</button></div>' +
+        '<iframe class="ad-frame" title="Advertisement" scrolling="no" frameborder="0"></iframe>';
+      document.body.appendChild(pop);
+      var frame = pop.querySelector('iframe');
+      function freePlan() { return !document.body.classList.contains('no-ads'); }
+      function appOn() { var a = document.getElementById('appView'); return a && !a.classList.contains('hidden'); }
+      function modalOpen() { return !!document.querySelector('.modal:not(.hidden)'); }
+      function show() {
+        if (!freePlan() || !appOn() || document.hidden || modalOpen()) return;
+        frame.src = '/ad-pop.html?t=' + Date.now();
+        pop.classList.remove('hidden');
+        setTimeout(hide, SHOW_MS);
+      }
+      function hide() { pop.classList.add('hidden'); frame.src = 'about:blank'; }
+      pop.querySelector('.ad-pop-close').addEventListener('click', hide);
+      setInterval(show, EVERY_MS);
+    })();
+  </script>
+  <script>
+    /* Pro read-aloud upgrade: better voice pick, speed & pitch controls in
+       Settings, keeps reading when you switch tabs, and auto-resumes if the
+       browser pauses long answers. */
+    (function () {
+      var P = {
+        name: localStorage.getItem('mediVoice') || '',
+        rate: parseFloat(localStorage.getItem('mediRate') || '1') || 1,
+        pitch: parseFloat(localStorage.getItem('mediPitch') || '1') || 1
+      };
+      function pickVoiceBetter(langCode) {
+        var voices = window.speechSynthesis.getVoices() || [];
+        if (P.name) { for (var i = 0; i < voices.length; i++) if (voices[i].name === P.name) return voices[i]; }
+        var best = null, bestScore = -1;
+        voices.forEach(function (v) {
+          if (!v.lang) return;
+          var s;
+          if (v.lang === langCode) s = 4;
+          else if (v.lang.split('-')[0] === String(langCode).split('-')[0]) s = 2;
+          else return;
+          if (/natural|neural|premium|enhanced/i.test(v.name)) s += 4;
+          if (/google/i.test(v.name)) s += 3;
+          else if (/microsoft/i.test(v.name)) s += 2;
+          if (/(female|aria|jenny|emma|samantha|zira|priya|isha|heera|swara|neerja|aditi|kalpana)/i.test(v.name)) s += 1;
+          if (v.localService) s += 1;
+          if (s > bestScore) { best = v; bestScore = s; }
+        });
+        return bestScore >= 0 ? best : null;
+      }
+      function stopSpeaking() {
+        /* switching tabs should NOT kill the reading */
+        if (document.hidden) return;
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        try { if (speakingBtn) { speakingBtn.classList.remove('speaking'); speakingBtn = null; } } catch (e) {}
+      }
+      function speak(text, btn) {
+        if (!('speechSynthesis' in window)) return toast('Reading aloud is not supported in this browser.');
+        if (typeof speakingBtn !== 'undefined' && speakingBtn === btn) { stopSpeaking(); return; }
+        stopSpeaking();
+        var langCode = (typeof state !== 'undefined' && state.user && state.user.language) || 'en-IN';
+        var voice = pickVoiceBetter(langCode);
+        var clean = String(text)
+          .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+          .replace(/[*_`#>|]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (!clean) return;
+        var parts = clean.match(/[^.!?\u0964]+[.!\u0964]?/g) || [clean];
+        var groups = [], buf = '';
+        parts.forEach(function (c) {
+          if ((buf + c).length > 200) { if (buf) groups.push(buf); buf = c; } else buf += c;
+        });
+        if (buf) groups.push(buf);
+        groups.forEach(function (g, i) {
+          var u = new SpeechSynthesisUtterance(g);
+          u.lang = voice ? voice.lang : langCode;
+          if (voice) u.voice = voice;
+          u.rate = Math.min(1.6, Math.max(0.6, P.rate));
+          u.pitch = Math.min(1.4, Math.max(0.6, P.pitch));
+          if (i === groups.length - 1) {
+            u.onend = function () { if (typeof speakingBtn !== 'undefined' && speakingBtn === btn) stopSpeaking(); };
+            u.onerror = function () { if (typeof speakingBtn !== 'undefined' && speakingBtn === btn) stopSpeaking(); };
+          }
+          window.speechSynthesis.speak(u);
+        });
+        btn.classList.add('speaking');
+        speakingBtn = btn;
+      }
+      /* Chrome bug: long readings silently pause — nudge it awake. */
+      setInterval(function () {
+        try { if (window.speechSynthesis.speaking && window.speechSynthesis.paused) window.speechSynthesis.resume(); } catch (e) {}
+      }, 8000);
+      window.speak = speak;
+      window.stopSpeaking = stopSpeaking;
+      window.pickVoice = pickVoiceBetter;
+
+      /* ---- Voice settings UI inside the Settings modal ---- */
+      var sm = document.getElementById('settingsModal');
+      if (sm) {
+        var wrap = document.createElement('div');
+        wrap.className = 'voice-setting';
+        wrap.innerHTML =
+          '<label>Read-aloud voice</label>' +
+          '<select id="voiceSelect"></select>' +
+          '<div class="row"><span>Speed</span><b id="rateVal"></b></div>' +
+          '<input type="range" id="rateRange" min="0.6" max="1.6" step="0.05">' +
+          '<div class="row"><span>Pitch</span><b id="pitchVal"></b></div>' +
+          '<input type="range" id="pitchRange" min="0.6" max="1.4" step="0.05">' +
+          '<button type="button" class="btn-ghost-gold" id="voiceTest"><i class="bi bi-play-circle"></i> Test voice</button>';
+        var saveBtn = document.getElementById('saveSettings');
+        saveBtn.parentNode.insertBefore(wrap, saveBtn);
+        var vSel = wrap.querySelector('#voiceSelect');
+        var rR = wrap.querySelector('#rateRange'), pR = wrap.querySelector('#pitchRange');
+        var rV = wrap.querySelector('#rateVal'), pV = wrap.querySelector('#pitchVal');
+        function fillVoices() {
+          var voices = window.speechSynthesis.getVoices() || [];
+          var html_ = '<option value="">Automatic (best available)</option>';
+          voices.forEach(function (v) {
+            html_ += '<option value="' + v.name.replace(/"/g, '') + '"' + (P.name === v.name ? ' selected' : '') + '>' +
+                     v.name + ' (' + v.lang + ')</option>';
+          });
+          vSel.innerHTML = html_;
+        }
+        function syncLabels() {
+          rR.value = P.rate; pR.value = P.pitch;
+          rV.textContent = P.rate.toFixed(2).replace(/0$/, '') + 'x';
+          pV.textContent = P.pitch.toFixed(2).replace(/0$/, '') + 'x';
+        }
+        fillVoices(); syncLabels();
+        if (window.speechSynthesis) window.speechSynthesis.onvoiceschanged = fillVoices;
+        document.getElementById('settingsBtn').addEventListener('click', fillVoices);
+        vSel.addEventListener('change', function () { P.name = vSel.value; localStorage.setItem('mediVoice', P.name); });
+        rR.addEventListener('input', function () { P.rate = parseFloat(rR.value); localStorage.setItem('mediRate', P.rate); syncLabels(); });
+        pR.addEventListener('input', function () { P.pitch = parseFloat(pR.value); localStorage.setItem('mediPitch', P.pitch); syncLabels(); });
+        wrap.querySelector('#voiceTest').addEventListener('click', function () {
+          speak('Hello! I am Medi AI, your health companion. How are you feeling today?', wrap.querySelector('#voiceTest'));
+        });
+      }
     })();
   </script>
 </body>
