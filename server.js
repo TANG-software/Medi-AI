@@ -76,16 +76,8 @@ const LANGUAGES = [
   { code: 'tr-TR', name: 'Türkçe — Turkish' }, { code: 'fa-IR', name: 'فارسی — Persian' },
   { code: 'vi-VN', name: 'Tiếng Việt — Vietnamese' }, { code: 'th-TH', name: 'ไทย — Thai' }, { code: 'fil-PH', name: 'Filipino' }, { code: 'nl-NL', name: 'Nederlands — Dutch' },
   { code: 'pl-PL', name: 'Polski — Polish' }, { code: 'uk-UA', name: 'Українська — Ukrainian' },
-  { code: 'ro-RO', name: 'Română — Romanian' },
-  { code: 'el-GR', name: 'Ελληνικά — Greek' },
-  { code: 'he-IL', name: 'עברית — Hebrew' },
-  { code: 'sw-KE', name: 'Kiswahili — Swahili' },
-  { code: 'ha-NG', name: 'Hausa' }, { code: 'cs-CZ', name: 'Čeština — Czech' },
-  { code: 'hu-HU', name: 'Magyar — Hungarian' },
-  { code: 'sv-SE', name: 'Svenska — Swedish' },
-  { code: 'no-NO', name: 'Norsk — Norwegian' },
-  { code: 'da-DK', name: 'Dansk — Danish' },
-  { code: 'fi-FI', name: 'Suomi — Finnish' },
+  { code: 'ro-RO', name: 'Română — Romanian' }, { code: 'el-GR', name: 'Ελληνικά — Greek' }, { code: 'he-IL', name: 'עברית — Hebrew' }, { code: 'sw-KE', name: 'Kiswahili — Swahili' }, { code: 'ha-NG', name: 'Hausa' }, { code: 'cs-CZ', name: 'Čeština — Czech' },
+  { code: 'hu-HU', name: 'Magyar — Hungarian' }, { code: 'sv-SE', name: 'Svenska — Swedish' }, { code: 'no-NO', name: 'Norsk — Norwegian' }, { code: 'da-DK', name: 'Dansk — Danish' }, { code: 'fi-FI', name: 'Suomi — Finnish' },
 ];
 
 /* --------------------------- emergencies --------------------------- */
@@ -693,6 +685,21 @@ app.get('*', (req, res) => {
       'ALTER TABLE users ADD COLUMN provider TEXT DEFAULT NULL',
       'ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE',
     ]) { try { await db.pool.query(m); } catch (e) {} }
+    /* Grow the knowledge base: add topics from kb-extra.js that are not in
+       the database yet. Safe on every boot — existing topics are skipped,
+       and admin-added or admin-edited topics are never touched. */
+    try {
+      const extra = require('./kb-extra');
+      const existing = new Set((await db.listKB()).map((k) => String(k.topic).toLowerCase()));
+      let added = 0;
+      for (const e of extra) {
+        if (!existing.has(String(e[0]).toLowerCase())) {
+          await db.addKB(e[0], e[1], e[2], e[3], e[4], e[5] || 'Medi AI Knowledge Base');
+          added++;
+        }
+      }
+      if (added) console.log('[medi-ai] knowledge base: +' + added + ' topics');
+    } catch (e) { console.error('[medi-ai] kb-extra load failed: ' + e.message); }
     console.log('[medi-ai] database ready (PostgreSQL)');
   } catch (e) {
     console.error('[medi-ai] DATABASE ERROR: ' + e.message);
