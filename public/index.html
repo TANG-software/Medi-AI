@@ -360,15 +360,19 @@
     })();
   </script>
   <script>
-    /* Pro read-aloud upgrade: better voice pick, speed & pitch controls in
-       Settings, keeps reading when you switch tabs, and auto-resumes if the
-       browser pauses long answers. */
+    /* Pro read-aloud v2: uses the PREMIUM voice engine on the server when
+       available (natural AI voices, great with Indian languages & Hinglish),
+       and instantly falls back to the phone's built-in voice if the premium
+       service is off or fails. Speed & pitch controls apply to both. */
     (function () {
       var P = {
         name: localStorage.getItem('mediVoice') || '',
+        speaker: localStorage.getItem('mediSpeaker') || 'anushka',
         rate: parseFloat(localStorage.getItem('mediRate') || '1') || 1,
         pitch: parseFloat(localStorage.getItem('mediPitch') || '1') || 1
       };
+      var audioEl = null;
+
       function pickVoiceBetter(langCode) {
         var voices = window.speechSynthesis.getVoices() || [];
         if (P.name) { for (var i = 0; i < voices.length; i++) if (voices[i].name === P.name) return voices[i]; }
@@ -388,24 +392,22 @@
         });
         return bestScore >= 0 ? best : null;
       }
+
       function stopSpeaking() {
         /* switching tabs should NOT kill the reading */
         if (document.hidden) return;
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        if (audioEl) { try { audioEl.pause(); } catch (e) {} audioEl = null; }
         try { if (speakingBtn) { speakingBtn.classList.remove('speaking'); speakingBtn = null; } } catch (e) {}
       }
-      function speak(text, btn) {
-        if (!('speechSynthesis' in window)) return toast('Reading aloud is not supported in this browser.');
-        if (typeof speakingBtn !== 'undefined' && speakingBtn === btn) { stopSpeaking(); return; }
-        stopSpeaking();
-        var langCode = (typeof state !== 'undefined' && state.user && state.user.language) || 'en-IN';
+
+      function finishIfStill(btn) {
+        if (typeof speakingBtn !== 'undefined' && speakingBtn === btn) stopSpeaking();
+      }
+
+      /* ---- phone built-in voice (fallback) ---- */
+      function browserSpeak(clean, langCode, btn) {
         var voice = pickVoiceBetter(langCode);
-        var clean = String(text)
-          .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-          .replace(/[*_`#>|]/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-        if (!clean) return;
         var parts = clean.match(/[^.!?\u0964]+[.!\u0964]?/g) || [clean];
         var groups = [], buf = '';
         parts.forEach(function (c) {
@@ -419,14 +421,53 @@
           u.rate = Math.min(1.6, Math.max(0.6, P.rate));
           u.pitch = Math.min(1.4, Math.max(0.6, P.pitch));
           if (i === groups.length - 1) {
-            u.onend = function () { if (typeof speakingBtn !== 'undefined' && speakingBtn === btn) stopSpeaking(); };
-            u.onerror = function () { if (typeof speakingBtn !== 'undefined' && speakingBtn === btn) stopSpeaking(); };
+            u.onend = function () { finishIfStill(btn); };
+            u.onerror = function () { finishIfStill(btn); };
           }
           window.speechSynthesis.speak(u);
         });
+      }
+
+      /* ---- premium AI voice (server /api/tts) ---- */
+      function premiumSpeak(clean, langCode, btn) {
+        var done = false;
+        fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: clean, language: langCode, speaker: P.speaker, rate: P.rate, pitch: P.pitch })
+        }).then(function (r) { if (!r.ok) throw new Error('tts ' + r.status); return r.json(); })
+          .then(function (j) {
+            if (done) return;
+            if (!j.audio) throw new Error('no audio');
+            audioEl = new Audio('data:audio/wav;base64,' + j.audio);
+            audioEl.onended = function () { finishIfStill(btn); };
+            audioEl.onerror = function () { finishIfStill(btn); };
+            var pr = audioEl.play();
+            if (pr && pr.catch) pr.catch(function () { done = true; browserSpeak(clean, langCode, btn); });
+          })
+          .catch(function () {
+            if (done) return;
+            done = true;
+            browserSpeak(clean, langCode, btn); /* graceful fallback */
+          });
+      }
+
+      function speak(text, btn) {
+        if (!('speechSynthesis' in window)) return toast('Reading aloud is not supported in this browser.');
+        if (typeof speakingBtn !== 'undefined' && speakingBtn === btn) { stopSpeaking(); return; }
+        stopSpeaking();
+        var langCode = (typeof state !== 'undefined' && state.user && state.user.language) || 'en-IN';
+        var clean = String(text)
+          .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+          .replace(/[*_`#>|]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (!clean) return;
         btn.classList.add('speaking');
         speakingBtn = btn;
+        premiumSpeak(clean, langCode, btn);
       }
+
       /* Chrome bug: long readings silently pause — nudge it awake. */
       setInterval(function () {
         try { if (window.speechSynthesis.speaking && window.speechSynthesis.paused) window.speechSynthesis.resume(); } catch (e) {}
@@ -442,6 +483,16 @@
         wrap.className = 'voice-setting';
         wrap.innerHTML =
           '<label>Read-aloud voice</label>' +
+          '<div class="row" style="margin:2px 0 8px"><span>Engine</span><b id="ttsEngine">checking…</b></div>' +
+          '<label style="margin-top:6px">AI voice person (premium engine)</label>' +
+          '<select id="speakerSelect" style="width:100%">' +
+          '<option value="anushka">Anushka — female, warm</option>' +
+          '<option value="diya">Diya — female, clear</option>' +
+          '<option value="maitreyi">Maitreyi — female, soft</option>' +
+          '<option value="abhilash">Abhilash — male, calm</option>' +
+          '<option value="neel">Neel — male, energetic</option>' +
+          '<option value="varenya">Varenya — male, deep</option></select>' +
+          '<label style="margin-top:8px">Phone voice (used as fallback)</label>' +
           '<select id="voiceSelect"></select>' +
           '<div class="row"><span>Speed</span><b id="rateVal"></b></div>' +
           '<input type="range" id="rateRange" min="0.6" max="1.6" step="0.05">' +
@@ -451,8 +502,14 @@
         var saveBtn = document.getElementById('saveSettings');
         saveBtn.parentNode.insertBefore(wrap, saveBtn);
         var vSel = wrap.querySelector('#voiceSelect');
+        var sSel = wrap.querySelector('#speakerSelect');
         var rR = wrap.querySelector('#rateRange'), pR = wrap.querySelector('#pitchRange');
         var rV = wrap.querySelector('#rateVal'), pV = wrap.querySelector('#pitchVal');
+        sSel.value = P.speaker;
+        fetch('/api/tts').then(function (r) { return r.json(); }).then(function (j) {
+          var el = wrap.querySelector('#ttsEngine');
+          if (el) el.textContent = j.premium ? 'Premium AI voice ✓' : 'Phone voice (fallback)';
+        }).catch(function () {});
         function fillVoices() {
           var voices = window.speechSynthesis.getVoices() || [];
           var html_ = '<option value="">Automatic (best available)</option>';
@@ -471,6 +528,7 @@
         if (window.speechSynthesis) window.speechSynthesis.onvoiceschanged = fillVoices;
         document.getElementById('settingsBtn').addEventListener('click', fillVoices);
         vSel.addEventListener('change', function () { P.name = vSel.value; localStorage.setItem('mediVoice', P.name); });
+        sSel.addEventListener('change', function () { P.speaker = sSel.value; localStorage.setItem('mediSpeaker', P.speaker); });
         rR.addEventListener('input', function () { P.rate = parseFloat(rR.value); localStorage.setItem('mediRate', P.rate); syncLabels(); });
         pR.addEventListener('input', function () { P.pitch = parseFloat(pR.value); localStorage.setItem('mediPitch', P.pitch); syncLabels(); });
         wrap.querySelector('#voiceTest').addEventListener('click', function () {
