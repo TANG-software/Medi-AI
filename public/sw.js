@@ -1,6 +1,6 @@
 /* Medi AI — service worker: app shell cache, API always network-first. */
 'use strict';
-const CACHE = 'medi-ai-v6';
+const CACHE = 'medi-ai-v7';
 const SHELL = ['/', '/style.css', '/app.js', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -17,7 +17,7 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.pathname.startsWith('/api/')) return; // network only
+  if (e.request.method !== 'GET' || url.pathname.startsWith('/api/') || url.pathname.startsWith('/ad-')) return; // network only — API and ad frames are never cached
   e.respondWith(
     fetch(e.request)
       .then((res) => {
