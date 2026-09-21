@@ -110,7 +110,11 @@ function buildSystemPrompt({ mode, languageName, kbHits, emergency }) {
     '4. Never tell the user to stop or change prescription medicines — direct them to their doctor.',
     '5. Detect emergencies (heart attack, stroke, heavy bleeding, suicidal thoughts, poisoning, breathing trouble) and tell the user to call emergency services immediately.',
     '6. Use simple language, short paragraphs and bullet lists. Use common units (mg, °C, ml).',
-    '7. Reply ONLY in this language: ' + languageName + '.'
+    '7. LANGUAGE — AUTO-DETECT: Identify the language of the user\'s LATEST message and reply in that SAME language.',
+    '   - Hinglish (Hindi typed in English letters, like "sar dard hai") gets a natural Hinglish reply.',
+    '   - Any Indian or world language gets a reply in that language\'s own script.',
+    '   - If the user switches language mid-conversation, switch with them immediately.',
+    '   - Only when the message has no clear language, use the saved default: ' + languageName + ' .' 
   );
 
   if (mode === 'report') {
