@@ -416,6 +416,63 @@
     })();
   </script>
   <script>
+    /* Report Lens OCR booster: every photo is enhanced BEFORE the text is
+       read — small phone photos are upscaled, colors are removed
+       (grayscale) and contrast is boosted, which is exactly what OCR
+       engines need to read lab reports. Obvious OCR junk lines (random
+       symbols, noise) are filtered out afterwards so the AI receives
+       clean, useful text instead of garbage. */
+    (function () {
+      if (!window.Tesseract || !Tesseract.recognize) return;
+      var origRecognize = Tesseract.recognize.bind(Tesseract);
+      function enhance(source) {
+        return new Promise(function (resolve) {
+          var url = null;
+          var img = new Image();
+          img.onload = function () {
+            try {
+              var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+              if (!w || !h) return resolve(source);
+              var scale = w < 1500 ? Math.min(2.2, 1500 / w) : (w > 2600 ? 2600 / w : 1);
+              var c = document.createElement('canvas');
+              c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+              var ctx = c.getContext('2d');
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              try { ctx.filter = 'grayscale(1) contrast(1.6) brightness(1.08)'; } catch (e) {}
+              ctx.drawImage(img, 0, 0, c.width, c.height);
+              if (url) URL.revokeObjectURL(url);
+              resolve(c.toDataURL('image/png'));
+            } catch (e) { if (url) URL.revokeObjectURL(url); resolve(source); }
+          };
+          img.onerror = function () { resolve(source); };
+          if (typeof source === 'string') img.src = source;
+          else if (source && typeof source.size === 'number') { url = URL.createObjectURL(source); img.src = url; }
+          else resolve(source);
+        });
+      }
+      function cleanJunk(text) {
+        return String(text || '').split(/\r?\n/).map(function (l) { return l.trim(); })
+          .filter(function (l) {
+            if (!l) return false;
+            if (/[A-Za-z]{2,}|\d{2,}/.test(l)) return true; /* real words or numbers stay */
+            var alnum = (l.match(/[A-Za-z0-9\u0900-\u097F\u0980-\u0DFF]/g) || []).length;
+            return alnum >= 3;                              /* else keep only readable lines */
+          })
+          .join('\n')
+          .replace(/\n{3,}/g, '\n\n');
+      }
+      Tesseract.recognize = function (image, langs, options) {
+        return enhance(image).then(function (better) {
+          return origRecognize(better, langs, options);
+        }).then(function (result) {
+          try { if (result && result.data) result.data.text = cleanJunk(result.data.text); } catch (e) {}
+          return result;
+        });
+      };
+    })();
+  </script>
+  <script>
     /* Pro read-aloud v2: uses the PREMIUM voice engine on the server when
        available (natural AI voices, great with Indian languages & Hinglish),
        and instantly falls back to the phone's built-in voice if the premium
