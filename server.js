@@ -55,29 +55,7 @@ Object.assign(db.PLANS.elite, { credits: 119, renewDays: 1, weeks: 48 });
 /* --------------------------- languages ---------------------------- */
 const LANGUAGES = [
   { code: 'en-IN', name: 'English' }, { code: 'hi-Latn-IN', name: 'Hinglish — Roman Hindi + English mix' },
-  { code: 'hi-IN', name: 'हिन्दी — Hindi' },
-  { code: 'bn-IN', name: 'বাংলা — Bengali' }, { code: 'ta-IN', name: 'தமிழ் — Tamil' },
-  { code: 'te-IN', name: 'తెలుగు — Telugu' }, { code: 'mr-IN', name: 'मराठी — Marathi' },
-  { code: 'gu-IN', name: 'ગુજરાતી — Gujarati' }, { code: 'kn-IN', name: 'ಕನ್ನಡ — Kannada' },
-  { code: 'ml-IN', name: 'മലയാളം — Malayalam' }, { code: 'pa-IN', name: 'ਪੰਜਾਬੀ — Punjabi' },
-  { code: 'or-IN', name: 'ଓଡ଼ିଆ — Odia' }, { code: 'as-IN', name: 'অসমীয়া — Assamese' },
-  { code: 'ur-IN', name: 'اردو — Urdu' }, { code: 'mai-IN', name: 'मैथिली — Maithili' },
-  { code: 'sa-IN', name: 'संस्कृतम् — Sanskrit' }, { code: 'ks-IN', name: 'کٲشُر — Kashmiri' },
-  { code: 'ne-IN', name: 'नेपाली — Nepali' }, { code: 'kok-IN', name: 'कोंकणी — Konkani' },
-  { code: 'doi-IN', name: 'डोगरी — Dogri' }, { code: 'mni-IN', name: 'ꯃꯤꯇꯩꯂꯣꯟ — Manipuri' },
-  { code: 'brx-IN', name: 'बड़ो — Bodo' }, { code: 'sd-IN', name: 'سنڌي — Sindhi' },
-  { code: 'sat-IN', name: 'ᱥᱟᱱᱛᱟᱲᱤ — Santali' },
-  { code: 'ar-SA', name: 'العربية — Arabic' }, { code: 'es-ES', name: 'Español — Spanish' },
-  { code: 'fr-FR', name: 'Français — French' }, { code: 'de-DE', name: 'Deutsch — German' },
-  { code: 'pt-BR', name: 'Português — Portuguese' }, { code: 'it-IT', name: 'Italiano — Italian' },
-  { code: 'ru-RU', name: 'Русский — Russian' }, { code: 'zh-CN', name: '中文 — Chinese (Simplified)' },
-  { code: 'ja-JP', name: '日本語 — Japanese' }, { code: 'ko-KR', name: '한국어 — Korean' },
-  { code: 'id-ID', name: 'Bahasa Indonesia' }, { code: 'ms-MY', name: 'Bahasa Melayu' },
-  { code: 'tr-TR', name: 'Türkçe — Turkish' }, { code: 'fa-IR', name: 'فارسی — Persian' },
-  { code: 'vi-VN', name: 'Tiếng Việt — Vietnamese' }, { code: 'th-TH', name: 'ไทย — Thai' }, { code: 'fil-PH', name: 'Filipino' }, { code: 'nl-NL', name: 'Nederlands — Dutch' },
-  { code: 'pl-PL', name: 'Polski — Polish' }, { code: 'uk-UA', name: 'Українська — Ukrainian' },
-  { code: 'ro-RO', name: 'Română — Romanian' }, { code: 'el-GR', name: 'Ελληνικά — Greek' }, { code: 'he-IL', name: 'עברית — Hebrew' }, { code: 'sw-KE', name: 'Kiswahili — Swahili' }, { code: 'ha-NG', name: 'Hausa' }, { code: 'cs-CZ', name: 'Čeština — Czech' },
-  { code: 'hu-HU', name: 'Magyar — Hungarian' }, { code: 'sv-SE', name: 'Svenska — Swedish' }, { code: 'no-NO', name: 'Norsk — Norwegian' }, { code: 'da-DK', name: 'Dansk — Danish' }, { code: 'fi-FI', name: 'Suomi — Finnish' },
+  { code: 'hi-IN', name: 'हिन्दी — Hindi' }, { code: 'bn-IN', name: 'বাংলা — Bengali' }, { code: 'ta-IN', name: 'தமிழ் — Tamil' }, { code: 'te-IN', name: 'తెలుగు — Telugu' }, { code: 'mr-IN', name: 'मराठी — Marathi' }, { code: 'gu-IN', name: 'ગુજરાતી — Gujarati' }, { code: 'kn-IN', name: 'ಕನ್ನಡ — Kannada' }, { code: 'ml-IN', name: 'മലയാളം — Malayalam' }, { code: 'pa-IN', name: 'ਪੰਜਾਬੀ — Punjabi' }, { code: 'or-IN', name: 'ଓଡ଼ିଆ — Odia' }, { code: 'as-IN', name: 'অসমীয়া — Assamese' }, { code: 'ur-IN', name: 'اردو — Urdu' }, { code: 'mai-IN', name: 'मैथिली — Maithili' }, { code: 'sa-IN', name: 'संस्कृतम् — Sanskrit' }, { code: 'ks-IN', name: 'کٲشُر — Kashmiri' }, { code: 'ne-IN', name: 'नेपाली — Nepali' }, { code: 'kok-IN', name: 'कोंकणी — Konkani' }, { code: 'doi-IN', name: 'डोगरी — Dogri' }, { code: 'mni-IN', name: 'ꯃꯤꯇꯩꯂꯣꯟ — Manipuri' }, { code: 'brx-IN', name: 'बड़ो — Bodo' }, { code: 'sd-IN', name: 'سنڌي — Sindhi' }, { code: 'sat-IN', name: 'ᱥᱟᱱᱛᱟᱲᱤ — Santali' }, { code: 'ar-SA', name: 'العربية — Arabic' }, { code: 'es-ES', name: 'Español — Spanish' }, { code: 'fr-FR', name: 'Français — French' }, { code: 'de-DE', name: 'Deutsch — German' }, { code: 'pt-BR', name: 'Português — Portuguese' }, { code: 'it-IT', name: 'Italiano — Italian' }, { code: 'ru-RU', name: 'Русский — Russian' }, { code: 'zh-CN', name: '中文 — Chinese (Simplified)' }, { code: 'ja-JP', name: '日本語 — Japanese' }, { code: 'ko-KR', name: '한국어 — Korean' }, { code: 'id-ID', name: 'Bahasa Indonesia' }, { code: 'ms-MY', name: 'Bahasa Melayu' }, { code: 'tr-TR', name: 'Türkçe — Turkish' }, { code: 'fa-IR', name: 'فارسی — Persian' }, { code: 'vi-VN', name: 'Tiếng Việt — Vietnamese' }, { code: 'th-TH', name: 'ไทย — Thai' }, { code: 'fil-PH', name: 'Filipino' }, { code: 'nl-NL', name: 'Nederlands — Dutch' }, { code: 'pl-PL', name: 'Polski — Polish' }, { code: 'uk-UA', name: 'Українська — Ukrainian' }, { code: 'ro-RO', name: 'Română — Romanian' }, { code: 'el-GR', name: 'Ελληνικά — Greek' }, { code: 'he-IL', name: 'עברית — Hebrew' }, { code: 'sw-KE', name: 'Kiswahili — Swahili' }, { code: 'ha-NG', name: 'Hausa' }, { code: 'cs-CZ', name: 'Čeština — Czech' }, { code: 'hu-HU', name: 'Magyar — Hungarian' }, { code: 'sv-SE', name: 'Svenska — Swedish' }, { code: 'no-NO', name: 'Norsk — Norwegian' }, { code: 'da-DK', name: 'Dansk — Danish' }, { code: 'fi-FI', name: 'Suomi — Finnish' },
 ];
 
 /* --------------------------- emergencies --------------------------- */
@@ -115,9 +93,16 @@ function buildSystemPrompt({ mode, languageName, kbHits, emergency }) {
 
   if (mode === 'report') {
     lines.push(
-      'MODE — REPORT LENS: The user has uploaded a medical report or lab result that was converted to text by OCR.',
-      'Explain it simply: what the report is, key values, which are normal / abnormal and what they usually mean.',
-      'Add: "This is not a diagnosis — discuss these results with your doctor." OCR text may contain errors; note anything that looks cut off or garbled instead of guessing.'
+      'MODE — REPORT LENS: The user uploaded a medical report scanned by OCR.',
+      'The OCR text may contain junk characters and mistakes — silently ignore unreadable parts and NEVER guess a value you cannot read.',
+      'Focus on the MEDICAL meaning, not paperwork: NEVER describe, list or comment on the patient name, age, gender, dates, sample or barcode numbers, doctor or lab name/address.',
+      'Answer with EXACTLY these sections (in the language the user writes in):',
+      '1. **What this report is** — one or two lines: which test or check-up this is and what it checks.',
+      '2. **Key results** — a simple table with only the medically important values: Test | Result | Normal? | Meaning in plain words. Mark abnormal ones clearly.',
+      '3. **What it may mean** — the conditions or deficiencies the abnormal results can point to, most important first, in plain language.',
+      '4. **Common causes** — the usual diet, lifestyle or health reasons behind these findings.',
+      '5. **How to improve** — practical steps: foods, habits, which specialist to consult, and which follow-up test or question to ask the doctor.',
+      'End with: "This is not a diagnosis — discuss these results with your doctor."'
     );
   } else {
     lines.push('MODE — MEDICAL CHATBOT: Answer the user\'s health question directly and helpfully.');
