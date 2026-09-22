@@ -149,7 +149,7 @@ async function callOpenAI(p, messages) {
     model,
     messages,
     temperature: 0.4,
-    max_tokens: 1400,
+    max_tokens: 1800,
   }, { Authorization: 'Bearer ' + process.env[p.keyEnv] });
   let model = discoveredModels[p.id] || modelOf(p);
   try {
@@ -168,7 +168,7 @@ async function callGemini(p, messages) {
   const contents = messages
     .filter((m) => m.role !== 'system')
     .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
-  const body = { contents, generationConfig: { temperature: 0.4, maxOutputTokens: 1400 } };
+  const body = { contents, generationConfig: { temperature: 0.4, maxOutputTokens: 1800 } };
   if (system) body.systemInstruction = { parts: [{ text: system }] };
   const url = p.url + '/models/' + modelOf(p) + ':generateContent?key=' + process.env[p.keyEnv];
   const res = await postJSON(url, body);
