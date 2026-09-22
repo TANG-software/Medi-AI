@@ -50,7 +50,7 @@
     .ad-pop .ad-frame { width: 300px; height: 250px; max-width: 100%; }
     body.no-ads .ad-pop { display: none !important; }
 
-    /* Full-screen interstitial ad: appears every 5 minutes. The Skip button
+    /* Full-screen interstitial ad: appears every 3 minutes. The Skip button
        unlocks after a 10-second countdown, then the ad stays on screen until
        the user closes it. Never on the auth screen, never for paid users. */
     .ad-inter { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; background: rgba(4, 4, 7, 0.97); animation: adinter-in 0.3s ease; }
@@ -349,7 +349,7 @@
        politely says hello and leaves. */
     (function () {
       var EVERY_MS = 60000;   /* one popup per minute */
-      var SHOW_MS = 7000;     /* stays for 7 seconds */
+      var SHOW_MS = 10000;    /* stays for 10 seconds */
       var pop = document.createElement('div');
       pop.id = 'adPop';
       pop.className = 'ad-pop hidden';
@@ -374,13 +374,13 @@
     })();
   </script>
   <script>
-    /* Full-screen interstitial ad: appears every 5 minutes. The Skip button
+    /* Full-screen interstitial ad: appears every 3 minutes. The Skip button
        stays locked for a 10-second countdown — after that the ad remains on
        screen until the user closes it manually. It never shows on the auth
        screen, while a modal is open, when the tab is hidden, or for paid
        users, and it never pauses chat, TTS or AI generation (DOM only). */
     (function () {
-      var EVERY_MS = 300000;  /* one interstitial every 5 minutes */
+      var EVERY_MS = 180000;  /* one interstitial every 3 minutes */
       var SKIP_SEC = 10;      /* skip button unlocks after 10 seconds */
       var inter = document.createElement('div');
       inter.id = 'adInterstitial';
