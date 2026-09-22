@@ -30,6 +30,10 @@
     .ad-native { height: 100px; max-height: 100px; }
     .ad-native .ad-frame { width: 100%; height: 100px; max-height: 100px; }
 
+    /* Native ad strip on the login screen — under the auth card */
+    .ad-auth { width: 100%; max-width: 350px; margin: 16px auto 0; }
+    .ad-auth .ad-frame { width: 100%; height: 130px; }
+
     /* Chat history can never be squeezed out of the sidebar by the ad banner */
     .sidebar-scroll { min-height: 190px; }
 
@@ -100,6 +104,9 @@
         <button type="submit" class="btn-gold" id="authSubmit">Create account</button>
       </form>
       <p class="auth-note">Not medical advice. In an emergency call 112 (India).</p>
+    </div>
+    <div class="ad-auth" aria-label="Advertisement">
+      <iframe class="ad-frame" src="/ad-native.html" title="Advertisement" scrolling="no" frameborder="0" loading="lazy"></iframe>
     </div>
   </section>
 
@@ -327,8 +334,10 @@
       function reload(frame) { try { frame.contentWindow.location.reload(); } catch (e) {} }
       var banner = document.querySelector('.ad-banner .ad-frame');
       var native = document.querySelector('.ad-native .ad-frame');
+      var authAd = document.querySelector('.ad-auth .ad-frame');
       setInterval(function () { if (freePlan() && visible(banner)) reload(banner); }, BANNER_SEC * 1000);
       setInterval(function () { if (freePlan() && visible(native)) reload(native); }, NATIVE_SEC * 1000);
+      setInterval(function () { if (visible(authAd)) reload(authAd); }, NATIVE_SEC * 1000); /* login-page ad */
       /* One extra native impression when the user opens a different page */
       var lastPage = 0;
       document.addEventListener('click', function (e) {
