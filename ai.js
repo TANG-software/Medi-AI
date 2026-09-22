@@ -111,7 +111,7 @@ function modelOf(p) { return process.env[p.id.toUpperCase() + '_MODEL'] || p.mod
 /** Base URL can be overridden per provider via e.g. MISTRAL_BASE_URL=... */
 function urlOf(p) { return process.env[p.id.toUpperCase() + '_BASE_URL'] || p.url; }
 
-/* ---------- model auto-discovery ----------
+/* ---------- model auto-discovery ---
    Providers retire old model names over time (e.g. Groq 404s on
    llama-3.3-70b-versatile). When that happens we ask the provider's
    /models endpoint what is available and switch automatically. */
@@ -184,11 +184,14 @@ async function callProvider(p, messages) {
 }
 
 /**
- * Multi-engine answer ("Collective"): up to `count` different providers
- * answer the same question in parallel, then a synthesis call merges
- * the drafts into one final, safer answer. If some engines fail, the
- * remaining ones still answer. Provider identities are never exposed
- * to the client — only the engine count.
+ * Multi-engine answer ("Collective" — FAST MODE): up to `count` different
+ * providers all start answering at the same time, and the FIRST engine to
+ * finish delivers the reply. That makes every plan as fast as the single
+ * fastest engine — no waiting for slow engines and no extra merge call.
+ * The other engines keep running as backup: if the winner fails or comes
+ * back empty, the next finisher takes over; if all fail, the sequential
+ * fallback chain answers. Provider identities are never exposed to the
+ * client — only the engine count.
  */
 async function ensembleChat(messages, count) {
   const avail = PROVIDERS.filter((p) => process.env[p.keyEnv]);
@@ -203,27 +206,17 @@ async function ensembleChat(messages, count) {
     const r = await chat(picks[0].id, messages);
     return { text: r.text, engines: 1 };
   }
-  const results = await Promise.allSettled(picks.map((p) => callProvider(p, messages)));
-  const texts = results.filter((r) => r.status === 'fulfilled' && r.value).map((r) => r.value);
-  if (!texts.length) {
-    const r = await chat(null, messages); // full fallback chain
+  const tasks = picks.map((p) => callProvider(p, messages).then((t) => {
+    if (!t || !String(t).trim()) throw new Error(p.label + ' returned an empty response');
+    return t;
+  }));
+  try {
+    const text = await Promise.any(tasks); /* first successful engine wins */
+    return { text, engines: picks.length };
+  } catch (e) {
+    const r = await chat(null, messages); // every racer failed — full fallback chain
     return { text: r.text, engines: 1 };
   }
-  if (texts.length === 1) return { text: texts[0], engines: 1 };
-  const drafts = texts.map((t, i) => 'DRAFT ' + (i + 1) + ':\n' + t.slice(0, 4000)).join('\n\n');
-  const synthPrompt = [
-    'Combine the independent draft answers below into ONE final answer for the patient.',
-    'Rules:',
-    '1. Use the best of all drafts and remove repetition.',
-    '2. If the drafts disagree, keep the more cautious, safer advice.',
-    '3. Keep practical self-care tips and safe over-the-counter medicine suggestions (with a check-with-your-doctor note) when they help.',
-    '4. Keep any emergency warning if any draft has one.',
-    '5. Obey the language rule from the system instructions above.',
-    '6. Never mention drafts, engines, AI systems or how this answer was produced.',
-  ].join('\n');
-  const finalMessages = [...messages, { role: 'user', content: synthPrompt + '\n\n' + drafts }];
-  const final = await chat(picks[0].id, finalMessages);
-  return { text: final.text, engines: texts.length };
 }
 
 /**
