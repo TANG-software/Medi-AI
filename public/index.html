@@ -32,7 +32,7 @@
 
     /* Native ad strip on the login screen — under the auth card */
     .ad-auth { width: 100%; max-width: 350px; margin: 16px auto 0; }
-    .ad-auth .ad-frame { width: 100%; height: 130px; }
+    .ad-auth .ad-frame { width: 100%; height: 170px; }
 
     /* Chat history can never be squeezed out of the sidebar by the ad banner */
     .sidebar-scroll { min-height: 190px; }
@@ -124,7 +124,7 @@
       <p class="auth-note">Not medical advice. In an emergency call 112 (India).</p>
     </div>
     <div class="ad-auth" aria-label="Advertisement">
-      <iframe class="ad-frame" src="/ad-native.html" title="Advertisement" scrolling="no" frameborder="0" loading="lazy"></iframe>
+      <iframe class="ad-frame" src="/ad-native.html" title="Advertisement" scrolling="no" frameborder="0"></iframe>
     </div>
   </section>
 
@@ -344,9 +344,9 @@
        is visible. That keeps every impression viewable (what ad networks pay
        for) and never touches paid users or hidden ads. */
     (function () {
-      var BANNER_SEC = 90;   /* banner refresh interval */
-      var NATIVE_SEC = 150;  /* native strip refresh interval */
-      var PAGE_SEC = 120;    /* min gap between page-switch refreshes */
+      var BANNER_SEC = 60;   /* banner refresh interval (60s = industry-healthy minimum) */
+      var NATIVE_SEC = 90;   /* native strip refresh interval (90s, safe) */
+      var PAGE_SEC = 60;     /* min gap between page-switch refreshes */
       function freePlan() { return !document.body.classList.contains('no-ads'); }
       function visible(el) { return !!(el && el.offsetParent !== null && document.visibilityState === 'visible'); }
       function reload(frame) { try { frame.contentWindow.location.reload(); } catch (e) {} }
