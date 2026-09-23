@@ -68,6 +68,24 @@
     .ad-inter .ad-frame { width: 320px; height: 480px; max-width: 92vw; max-height: 62vh; }
     body.no-ads .ad-inter { display: none !important; }
 
+    /* Lab booking card under each report answer + upsell popup */
+    .lab-card {
+      max-width: 620px; margin: 4px 0 16px 44px; padding: 10px 14px;
+      background: rgba(212, 175, 55, 0.07);
+      border: 1px dashed rgba(212, 175, 55, 0.45); border-radius: 12px;
+      font-size: 13px;
+    }
+    .lab-card b { color: var(--gold-soft, #e6c96a); }
+    .lab-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .lab-links a {
+      flex: 1 1 120px; text-align: center; padding: 7px 10px; border-radius: 8px;
+      background: rgba(212, 175, 55, 0.14); border: 1px solid rgba(212, 175, 55, 0.4);
+      color: #e6c96a; text-decoration: none; font-size: 12.5px;
+    }
+    .lab-note { font-size: 11px; opacity: 0.6; margin-top: 6px; }
+    #upsellModal .modal-card { text-align: center; }
+    #upsellModal .modal-head { justify-content: space-between; }
+
     /* Voice settings (read-aloud) inside the Settings modal */
     .voice-setting { margin-top: 12px; border-top: 1px solid rgba(212, 175, 55, 0.18); padding-top: 12px; }
     .voice-setting select { width: 100%; }
@@ -479,6 +497,96 @@
           return result;
         });
       };
+    })();
+  </script>
+  <script>
+    /* Report Lens upsell — after every fresh scanned report:
+       1. a lab-test booking card under the answer (partner labs, new tab)
+       2. a subscription popup for FREE users, with their live credit count.
+       It only fires on new scans (the POST to /api/chat with mode=report),
+       never when re-reading an old saved chat. */
+    (function () {
+      function user() { return (typeof state !== 'undefined' && state.user) || null; }
+      function free() { var u = user(); return !u || u.plan === 'free'; }
+      var LABS = [
+        ['Tata 1mg Labs', 'https://www.1mg.com/labs'],
+        ['Healthians', 'https://www.healthians.com'],
+        ['PharmEasy', 'https://pharmeasy.in/diagnostics'],
+        ['Orange Health', 'https://orangehealth.com']
+      ];
+
+      /* remember when a fresh report scan is in flight */
+      var freshScan = false;
+      var origFetch = window.fetch.bind(window.fetch);
+      window.fetch = function (input, init) {
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (url.indexOf('/api/chat') > -1 && init && typeof init.body === 'string' && init.body.indexOf('"mode":"report"') > -1) {
+          freshScan = true;
+        }
+        return origFetch(input, init);
+      };
+
+      /* the upsell modal (reuses the app's modal styles) */
+      var up = document.createElement('div');
+      up.id = 'upsellModal';
+      up.className = 'modal hidden';
+      up.setAttribute('role', 'dialog');
+      up.setAttribute('aria-modal', 'true');
+      up.innerHTML = '<div class="modal-card">' +
+        '<div class="modal-head"><h3><i class="bi bi-stars"></i> Get more from Report Lens</h3>' +
+        '<button class="icon-btn" id="upsellClose" aria-label="Close"><i class="bi bi-x-lg"></i></button></div>' +
+        '<p class="modal-hint" id="upsellLine">Scans use 2 credits each.</p>' +
+        '<p class="modal-hint"><b style="color:#e6c96a">Plus</b> — 19 credits daily for 7 days · <b style="color:#e6c96a">Pro</b> — 39 daily for 28 days</p>' +
+        '<button class="btn-gold" id="upsellSeePlans">See plans</button>' +
+        '<button class="btn-ghost-gold" id="upsellLater">Maybe later</button></div>';
+      document.body.appendChild(up);
+      function closeUpsell() { up.classList.add('hidden'); }
+      document.getElementById('upsellClose').addEventListener('click', closeUpsell);
+      document.getElementById('upsellLater').addEventListener('click', closeUpsell);
+      document.getElementById('upsellSeePlans').addEventListener('click', function () {
+        closeUpsell();
+        var nav = document.querySelector('.nav-link[data-page="pricing"]');
+        if (nav) nav.click();
+      });
+      function showUpsell() {
+        var u = user();
+        var line = document.getElementById('upsellLine');
+        if (line) {
+          var left = u && typeof u.credits === 'number' ? u.credits : 0;
+          line.textContent = 'That scan used 2 credits — you have ' + left + ' left. ' +
+            (left < 4 ? 'You will run out soon — get more with a plan.' : 'Never run out with a plan.');
+        }
+        up.classList.remove('hidden');
+      }
+
+      /* watch for the answer of a fresh report scan */
+      var seen = new WeakSet();
+      var mo = new MutationObserver(function (muts) {
+        muts.forEach(function (m) {
+          for (var i = 0; i < m.addedNodes.length; i++) {
+            var n = m.addedNodes[i];
+            if (!(n && n.nodeType === 1 && n.classList && n.classList.contains('msg') && n.classList.contains('ai'))) continue;
+            if (seen.has(n) || !freshScan) continue;
+            seen.add(n);
+            freshScan = false;
+            /* lab booking card right under the answer */
+            var card = document.createElement('div');
+            card.className = 'lab-card';
+            var links = LABS.map(function (l) {
+              return '<a href="' + l[1] + '" target="_blank" rel="noopener">' + l[0] + '</a>';
+            }).join('');
+            card.innerHTML = '<b><i class="bi bi-droplet-half"></i> Need a test done?</b> ' +
+              'Book an at-home sample collection through a partner lab:' +
+              '<div class="lab-links">' + links + '</div>' +
+              '<div class="lab-note">Partner links — Medi AI may earn a commission. Prices vary by city.</div>';
+            n.parentNode.insertBefore(card, n.nextSibling);
+            /* subscription popup (free users only) a moment later */
+            if (free()) setTimeout(showUpsell, 1400);
+          }
+        });
+      });
+      var msgBox = document.getElementById('messages');
+      if (msgBox) mo.observe(msgBox, { childList: true });
     })();
   </script>
   <script>
