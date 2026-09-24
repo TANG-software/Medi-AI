@@ -533,7 +533,7 @@
 
       /* remember when a fresh report scan is in flight */
       var freshScan = false;
-      var origFetch = window.fetch.bind(window.fetch);
+      var origFetch = window.fetch.bind(window);
       window.fetch = function (input, init) {
         var url = typeof input === 'string' ? input : (input && input.url) || '';
         if (url.indexOf('/api/chat') > -1 && init && typeof init.body === 'string' && init.body.indexOf('"mode":"report"') > -1) {
