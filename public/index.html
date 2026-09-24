@@ -46,7 +46,10 @@
     .ad-native { height: 100px; max-height: 100px; }
     .ad-native .ad-frame { width: 100%; height: 100px; max-height: 100px; }
 
-    /* Native ad strip on the login screen — under the auth card */
+    /* Native ad strip on the login screen — under the auth card.
+       The auth view is a flex ROW by default, which pushes the ad off-screen
+       on phones. Stack card + ad vertically so the ad is always visible. */
+    .auth-view { flex-direction: column; }
     .ad-auth { width: 100%; max-width: 350px; margin: 16px auto 0; }
     .ad-auth .ad-frame { width: 100%; height: 170px; }
 
