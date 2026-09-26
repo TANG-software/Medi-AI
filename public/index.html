@@ -73,20 +73,6 @@
     .ad-pop .ad-frame { width: 300px; height: 250px; max-width: 100%; }
     body.no-ads .ad-pop { display: none !important; }
 
-    /* Full-screen interstitial ad: appears every 3 minutes. The Skip button
-       unlocks after a 10-second countdown, then the ad stays on screen until
-       the user closes it. Never on the auth screen, never for paid users. */
-    .ad-inter { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; background: rgba(4, 4, 7, 0.97); animation: adinter-in 0.3s ease; }
-    .ad-inter.hidden { display: none; }
-    @keyframes adinter-in { from { opacity: 0; } to { opacity: 1; } }
-    .ad-inter-card { padding: 12px; background: rgba(10, 10, 14, 0.98); border: 1px solid rgba(212, 175, 55, 0.5); border-radius: 14px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7); text-align: center; }
-    .ad-inter-head { display: flex; justify-content: space-between; align-items: center; margin: 0 0 8px; }
-    .ad-inter-head span { font-size: 9px; letter-spacing: 1.6px; text-transform: uppercase; color: #9a8f76; }
-    .ad-inter-close { background: none; border: 1px solid rgba(212, 175, 55, 0.5); border-radius: 8px; color: #9a8f76; font-size: 11px; line-height: 1; padding: 4px 9px; cursor: pointer; min-width: 58px; }
-    .ad-inter-close:disabled { opacity: 0.55; cursor: default; }
-    .ad-inter .ad-frame { width: 320px; height: 480px; max-width: 92vw; max-height: 62vh; }
-    body.no-ads .ad-inter { display: none !important; }
-
     /* Lab booking card under each report answer + upsell popup */
     .lab-card {
       max-width: 620px; margin: 4px 0 16px 44px; padding: 10px 14px;
@@ -198,7 +184,7 @@
         <button class="icon-btn" id="menuBtn" aria-label="Open menu"><i class="bi bi-list"></i></button>
         <div class="topbar-brand"><i class="bi bi-activity"></i> Medi <span>AI</span></div>
         <div class="topbar-right">
-          <span class="mode-badge" id="modeBadge"><i class="bi bi-chat-heart"></i> Chat</span>
+          <span class="mode-badge" id="modeBadge"><i class="bi bi-chat-chat-heart"></i> Chat</span>
           <span class="credit-pill top-credits"><i class="bi bi-lightning-charge"></i> <b id="creditCountTop">0</b></span>
         </div>
       </header>
@@ -420,45 +406,30 @@
     })();
   </script>
   <script>
-    /* Full-screen interstitial ad: appears every 3 minutes. The Skip button
-       stays locked for a 10-second countdown — after that the ad remains on
-       screen until the user closes it manually. It never shows on the auth
-       screen, while a modal is open, when the tab is hidden, or for paid
-       users, and it never pauses chat, TTS or AI generation (DOM only). */
+    /* Social Bar video ads (Adsterra) — replaces our old custom interstitial.
+       Serves short video / animation / full-screen creatives. It loads ONLY
+       after login, and ONLY for free users (paid users get body.no-ads and
+       never see it), so the login screen and paid plans stay clean.
+       ROLLBACK: delete this one block and Social Bar is gone. */
     (function () {
-      var EVERY_MS = 180000;  /* one interstitial every 3 minutes */
-      var SKIP_SEC = 10;      /* skip button unlocks after 10 seconds */
-      var inter = document.createElement('div');
-      inter.id = 'adInterstitial';
-      inter.className = 'ad-inter hidden';
-      inter.setAttribute('aria-label', 'Advertisement');
-      inter.innerHTML = '<div class="ad-inter-card">' +
-        '<div class="ad-inter-head"><span>Advertisement</span>' +
-        '<button class="ad-inter-close" aria-label="Close ad">Skip ' + SKIP_SEC + '</button></div>' +
-        '<iframe class="ad-frame" title="Advertisement" scrolling="no" frameborder="0"></iframe></div>';
-      document.body.appendChild(inter);
-      var frame = inter.querySelector('iframe');
-      var btn = inter.querySelector('.ad-inter-close');
-      var tick = null;
-      function freePlan() { return !document.body.classList.contains('no-ads'); }
-      function appOn() { var a = document.getElementById('appView'); return a && !a.classList.contains('hidden'); }
-      function modalOpen() { return !!document.querySelector('.modal:not(.hidden)'); }
-      function show() {
-        if (!freePlan() || !appOn() || document.hidden || modalOpen()) return;
-        frame.src = '/ad-interstitial.html?t=' + Date.now();
-        inter.classList.remove('hidden');
-        var left = SKIP_SEC;
-        btn.disabled = true;
-        clearInterval(tick);
-        tick = setInterval(function () {
-          left -= 1;
-          if (left > 0) { btn.textContent = 'Skip ' + left; }
-          else { clearInterval(tick); btn.textContent = '\u2715 Close'; btn.disabled = false; }
-        }, 1000);
+      var URL = 'https://celerycribbanish.com/bb/cf/fd/bbcffd4ce4090674225c751f71f738f0.js';
+      var placed = false;
+      function place() {
+        if (placed || document.body.classList.contains('no-ads')) return;
+        placed = true;
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = URL;
+        document.body.appendChild(s);
       }
-      function hide() { inter.classList.add('hidden'); frame.src = 'about:blank'; }
-      btn.addEventListener('click', function () { if (!btn.disabled) hide(); });
-      setInterval(show, EVERY_MS);
+      var t = setInterval(function () {
+        var auth = document.getElementById('authView');
+        var app = document.getElementById('appView');
+        if (document.body.classList.contains('no-ads')) { clearInterval(t); return; } /* paid user: never */
+        if (!auth || !app || !auth.classList.contains('hidden') || app.classList.contains('hidden')) return; /* still on login screen: wait */
+        clearInterval(t);
+        place(); /* user is in the app on the free plan — start Social Bar */
+      }, 500);
     })();
   </script>
   <script>
