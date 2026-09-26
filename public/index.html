@@ -31,6 +31,7 @@
   <meta property="og:description" content="Multilingual medical AI assistant with 10 AI engines, report scanning and 50+ languages.">
   <meta property="og:type" content="website">
 
+  <link rel="preconnect" href="https://pl31418229.profitableratecpmnetwork.com">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -72,6 +73,19 @@
     .ad-pop-close { background: none; border: 0; color: #9a8f76; font-size: 13px; line-height: 1; padding: 2px 4px; cursor: pointer; }
     .ad-pop .ad-frame { width: 300px; height: 250px; max-width: 100%; }
     body.no-ads .ad-pop { display: none !important; }
+
+    /* Full-screen interstitial ad — now TRIGGERED (timer, every 3rd answer,
+       chat switch) with a 75s minimum gap between any two shows. */
+    .ad-inter { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; background: rgba(4, 4, 7, 0.97); animation: adinter-in 0.3s ease; }
+    .ad-inter.hidden { display: none; }
+    @keyframes adinter-in { from { opacity: 0; } to { opacity: 1; } }
+    .ad-inter-card { padding: 12px; background: rgba(10, 10, 14, 0.98); border: 1px solid rgba(212, 175, 55, 0.5); border-radius: 14px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7); text-align: center; }
+    .ad-inter-head { display: flex; justify-content: space-between; align-items: center; margin: 0 0 8px; }
+    .ad-inter-head span { font-size: 9px; letter-spacing: 1.6px; text-transform: uppercase; color: #9a8f76; }
+    .ad-inter-close { background: none; border: 1px solid rgba(212, 175, 55, 0.5); border-radius: 8px; color: #9a8f76; font-size: 11px; line-height: 1; padding: 4px 9px; cursor: pointer; min-width: 58px; }
+    .ad-inter-close:disabled { opacity: 0.55; cursor: default; }
+    .ad-inter .ad-frame { width: 320px; height: 480px; max-width: 92vw; max-height: 62vh; }
+    body.no-ads .ad-inter { display: none !important; }
 
     /* Lab booking card under each report answer + upsell popup */
     .lab-card {
@@ -406,30 +420,73 @@
     })();
   </script>
   <script>
-    /* Social Bar video ads (Adsterra) — replaces our old custom interstitial.
-       Serves short video / animation / full-screen creatives. It loads ONLY
-       after login, and ONLY for free users (paid users get body.no-ads and
-       never see it), so the login screen and paid plans stay clean.
-       ROLLBACK: delete this one block and Social Bar is gone. */
+    /* Full-screen interstitial ad v2 — TRIGGERED, with safety rails:
+       - every 2 minutes while using the app
+       - after every 3rd AI answer
+       - when switching to another chat
+       - at least 75 seconds between ANY two full-screen ads
+       - never on the login screen, never while a modal is open (that also
+         protects the report upsell popup), never for paid users, and never
+         when the tab is hidden. Skip unlocks after 10 seconds, then the ad
+         stays until closed manually. */
     (function () {
-      var URL = 'https://celerycribbanish.com/bb/cf/fd/bbcffd4ce4090674225c751f71f738f0.js';
-      var placed = false;
-      function place() {
-        if (placed || document.body.classList.contains('no-ads')) return;
-        placed = true;
-        var s = document.createElement('script');
-        s.async = true;
-        s.src = URL;
-        document.body.appendChild(s);
+      var EVERY_MS = 120000;   /* timer trigger: every 2 minutes */
+      var MIN_GAP_MS = 75000;  /* hard minimum gap between any two full-screen ads */
+      var Q_EVERY = 3;         /* trigger after every 3rd AI answer */
+      var SKIP_SEC = 10;       /* skip button unlocks after 10 seconds */
+      var lastShown = 0;
+      var qCount = 0;
+      var inter = document.createElement('div');
+      inter.id = 'adInterstitial';
+      inter.className = 'ad-inter hidden';
+      inter.setAttribute('aria-label', 'Advertisement');
+      inter.innerHTML = '<div class="ad-inter-card">' +
+        '<div class="ad-inter-head"><span>Advertisement</span>' +
+        '<button class="ad-inter-close" aria-label="Close ad">Skip ' + SKIP_SEC + '</button></div>' +
+        '<iframe class="ad-frame" title="Advertisement" scrolling="no" frameborder="0"></iframe></div>';
+      document.body.appendChild(inter);
+      var frame = inter.querySelector('iframe');
+      var btn = inter.querySelector('.ad-inter-close');
+      var tick = null;
+      function freePlan() { return !document.body.classList.contains('no-ads'); }
+      function appOn() { var a = document.getElementById('appView'); return a && !a.classList.contains('hidden'); }
+      function modalOpen() { return !!document.querySelector('.modal:not(.hidden)'); }
+      function show() {
+        if (!freePlan() || !appOn() || document.hidden || modalOpen()) return;
+        if (Date.now() - lastShown < MIN_GAP_MS) return;
+        lastShown = Date.now();
+        frame.src = '/ad-interstitial.html?t=' + Date.now();
+        inter.classList.remove('hidden');
+        var left = SKIP_SEC;
+        btn.disabled = true;
+        clearInterval(tick);
+        tick = setInterval(function () {
+          left -= 1;
+          if (left > 0) { btn.textContent = 'Skip ' + left; }
+          else { clearInterval(tick); btn.textContent = '\u2715 Close'; btn.disabled = false; }
+        }, 1000);
       }
-      var t = setInterval(function () {
-        var auth = document.getElementById('authView');
-        var app = document.getElementById('appView');
-        if (document.body.classList.contains('no-ads')) { clearInterval(t); return; } /* paid user: never */
-        if (!auth || !app || !auth.classList.contains('hidden') || app.classList.contains('hidden')) return; /* still on login screen: wait */
-        clearInterval(t);
-        place(); /* user is in the app on the free plan — start Social Bar */
-      }, 500);
+      function hide() { inter.classList.add('hidden'); frame.src = 'about:blank'; }
+      btn.addEventListener('click', function () { if (!btn.disabled) hide(); });
+      /* trigger 1: the clock */
+      setInterval(show, EVERY_MS);
+      /* trigger 2: every 3rd AI answer */
+      new MutationObserver(function (muts) {
+        muts.forEach(function (m) {
+          for (var i = 0; i < m.addedNodes.length; i++) {
+            var n = m.addedNodes[i];
+            if (n && n.nodeType === 1 && n.classList && n.classList.contains('msg') && n.classList.contains('ai')) {
+              qCount += 1;
+              if (qCount % Q_EVERY === 0) setTimeout(show, 600);
+            }
+          }
+        });
+      }).observe(document.getElementById('messages'), { childList: true });
+      /* trigger 3: switching to another chat */
+      document.addEventListener('click', function (e) {
+        var t = e.target && e.target.closest ? e.target.closest('.chat-item') : null;
+        if (t) setTimeout(show, 800);
+      });
     })();
   </script>
   <script>
