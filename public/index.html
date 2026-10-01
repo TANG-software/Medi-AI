@@ -92,6 +92,9 @@
     #upsellModal .modal-card { text-align: center; }
     #upsellModal .modal-head { justify-content: space-between; }
 
+    /* Approximate local-currency line on the pricing cards */
+    .price-alt { display: block; font-size: 12px; font-weight: 400; opacity: 0.75; margin-top: 3px; }
+
     /* Voice settings (read-aloud) inside the Settings modal */
     .voice-setting { margin-top: 12px; border-top: 1px solid rgba(212, 175, 55, 0.18); padding-top: 12px; }
     .voice-setting select { width: 100%; }
@@ -341,6 +344,78 @@
         if (cm) cm.textContent = 'Credit coupons add credits instantly; discount coupons apply at checkout. Free plan credits refresh weekly; paid plan credits refresh daily. Pay with UPI, cards, netbanking or wallets via Razorpay.';
       };
     }
+  </script>
+  <script>
+    /* Local currency on the pricing page: shows an APPROXIMATE price in the
+       visitor's own currency next to the INR price (e.g. a visitor from the
+       Netherlands sees "₹49 ≈ €0.52"). Rates are fetched live from a free
+       no-key API once a day and cached; a built-in table is the fallback.
+       The real charge is still in INR by Razorpay, so the line says so. */
+    (function () {
+      var CUR = { IN:'INR', US:'USD', GB:'GBP', NL:'EUR', DE:'EUR', FR:'EUR', ES:'EUR', IT:'EUR', IE:'EUR', PT:'EUR', BE:'EUR', AT:'EUR', FI:'EUR', GR:'EUR', SK:'EUR', SI:'EUR', LT:'EUR', LV:'EUR', EE:'EUR', LU:'EUR', MT:'EUR', CY:'EUR', HR:'EUR', CA:'CAD', AU:'AUD', NZ:'NZD', AE:'AED', SA:'SAR', SG:'SGD', MY:'MYR', JP:'JPY', KR:'KRW', CN:'CNY', BR:'BRL', ZA:'ZAR', NG:'NGN', KE:'KES', PK:'PKR', BD:'BDT', LK:'LKR', NP:'NPR', TR:'TRY', ID:'IDR', PH:'PHP', TH:'THB', VN:'VND', MX:'MXN', AR:'ARS', CH:'CHF', SE:'SEK', NO:'NOK', DK:'DKK', PL:'PLN', CZ:'CZK', HU:'HUF', RO:'RON', IL:'ILS', EG:'EGP', GH:'GHS', TZ:'TZS', UG:'UGX', MU:'MUR', QA:'QAR', KW:'KWD', OM:'OMR', BH:'BHD', HK:'HKD', TW:'TWD', CL:'CLP', CO:'COP', PE:'PEN', UA:'UAH', KZ:'KZT' };
+      /* fallback INR -> currency rates (approximate; live rates are preferred) */
+      var STATIC = { USD:0.0113, EUR:0.0104, GBP:0.0088, CAD:0.0155, AUD:0.0170, NZD:0.0186, AED:0.0415, SAR:0.0424, SGD:0.0148, MYR:0.0495, JPY:1.70, KRW:15.4, CNY:0.081, BRL:0.063, ZAR:0.205, NGN:17.4, KES:1.46, PKR:3.16, BDT:1.38, LKR:3.4, NPR:1.6, TRY:0.42, IDR:180, PHP:0.65, THB:0.39, VND:295, MXN:0.21, ARS:14.5, CHF:0.0093, SEK:0.108, NOK:0.121, DKK:0.0775, PLN:0.042, CZK:0.26, HUF:4.1, RON:0.051, ILS:0.041, EGP:0.56, GH:0.17, TZ:30, UG:42, MU:0.52, QAR:0.041, KWD:0.0035, OMR:0.0043, BHD:0.0043, HKD:0.088, TWD:0.36, CLP:10.8, COP:47, PEN:0.042, UAH:0.47, KZT:5.9 };
+
+      function region() {
+        try {
+          var loc = navigator.language || '';
+          var m = loc.match(/[-_]([A-Za-z]{2})$/);
+          if (m) return m[1].toUpperCase();
+        } catch (e) {}
+        return '';
+      }
+      var cur = CUR[region()] || '';
+      if (!cur || cur === 'INR') return; /* Indian visitors already see INR */
+
+      function rates() {
+        try {
+          var raw = localStorage.getItem('mediRates');
+          if (raw) {
+            var o = JSON.parse(raw);
+            if (o && o.at && Date.now() - o.at < 86400000 && o.rates) return Promise.resolve(o.rates);
+          }
+        } catch (e) {}
+        return fetch('https://open.er-api.com/v6/latest/INR')
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            var r = (j && j.rates) || null;
+            if (r) { try { localStorage.setItem('mediRates', JSON.stringify({ at: Date.now(), rates: r })); } catch (e) {} }
+            return r;
+          })
+          .catch(function () { return null; });
+      }
+
+      function decorate() {
+        var cards = document.querySelectorAll('#pageView .price-card .price');
+        if (!cards.length) return;
+        rates().then(function (live) {
+          var rate = (live && live[cur]) || STATIC[cur];
+          if (!rate) return;
+          cards.forEach(function (el) {
+            if (el.querySelector('.price-alt')) return;
+            var inr = parseInt(String(el.textContent).replace(/[^0-9]/g, ''), 10);
+            if (!inr) return;
+            var val = inr * rate;
+            var txt;
+            try {
+              txt = new Intl.NumberFormat(navigator.language || 'en', { style: 'currency', currency: cur, maximumFractionDigits: val < 10 ? 2 : 0 }).format(val);
+            } catch (e) { txt = cur + ' ' + val.toFixed(2); }
+            var span = document.createElement('span');
+            span.className = 'price-alt';
+            span.textContent = '≈ ' + txt + ' (billed in ₹)';
+            el.appendChild(span);
+          });
+        });
+      }
+
+      if (typeof renderPricing === 'function') {
+        var prev = renderPricing;
+        renderPricing = async function () {
+          await prev.apply(this, arguments);
+          decorate();
+        };
+      }
+    })();
   </script>
 
   <script>
