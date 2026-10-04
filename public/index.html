@@ -95,6 +95,26 @@
     #upsellModal .modal-card { text-align: center; }
     #upsellModal .modal-head { justify-content: space-between; }
 
+    /* Public page links on the login screen */
+    .auth-links { text-align: center; margin: 14px 0 4px; font-size: 13px; }
+    .auth-links a { color: #d4af37; text-decoration: none; }
+    .auth-links a:hover { text-decoration: underline; }
+
+    /* Admin → Questions analytics */
+    .stat-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 14px; }
+    .stat-card { flex: 1 1 120px; background: rgba(212, 175, 55, 0.08); border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 12px; padding: 10px 12px; text-align: center; }
+    .stat-card b { display: block; font-size: 24px; color: #e6c96a; }
+    .stat-card span { font-size: 11.5px; opacity: 0.75; }
+    .stat-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 4px 0; }
+    .stat-bar .d { width: 74px; opacity: 0.75; }
+    .stat-bar .track { flex: 1; background: rgba(212, 175, 55, 0.16); border-radius: 6px; overflow: hidden; height: 14px; }
+    .stat-bar .fill { display: block; height: 14px; background: #d4af37; }
+    .stat-bar b { width: 34px; text-align: right; }
+    .stat-recent { font-size: 12.5px; padding: 7px 0; border-bottom: 1px solid rgba(212, 175, 55, 0.12); }
+    .stat-recent .who { color: #e6c96a; font-weight: 600; }
+    .stat-recent .when { opacity: 0.6; }
+    .stat-recent .txt { opacity: 0.85; display: block; margin-top: 2px; }
+
     /* Approximate local-currency line on the pricing cards */
     .price-alt { display: block; font-size: 12px; font-weight: 400; opacity: 0.75; margin-top: 3px; }
 
@@ -138,6 +158,9 @@
     <div class="ad-auth" aria-label="Advertisement">
       <iframe class="ad-frame" src="/ad-native.html" title="Advertisement" scrolling="no" frameborder="0"></iframe>
     </div>
+    <p class="auth-links">
+      <a href="/faq.html">FAQ</a> &middot; <a href="/privacy.html">Privacy Policy</a> &middot; <a href="/terms.html">Terms of Use</a>
+    </p>
   </section>
 
   <!-- ============ APP VIEW ============ -->
@@ -738,6 +761,75 @@
       });
       var msgBox = document.getElementById('messages');
       if (msgBox) mo.observe(msgBox, { childList: true });
+    })();
+  </script>
+  <script>
+    /* Admin → "Questions" analytics tab: how many questions were asked and
+       when. The tab is created here (after app.js has bound its own tabs), so
+       app.js never tries to open a pane it does not know about. */
+    (function () {
+      var tabs = document.querySelector('.admin-tabs');
+      var lastPane = document.getElementById('adminStatus');
+      if (!tabs || !lastPane) return;
+      var btn = document.createElement('button');
+      btn.className = 'admin-tab';
+      btn.setAttribute('data-tab', 'stats');
+      btn.textContent = 'Questions';
+      tabs.appendChild(btn);
+      var pane = document.createElement('div');
+      pane.id = 'adminStats';
+      pane.className = 'admin-pane hidden';
+      lastPane.parentNode.insertBefore(pane, lastPane.nextSibling);
+
+      function esc(x) {
+        return String(x == null ? '' : x).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+
+      function loadStats() {
+        pane.innerHTML = 'Loading…';
+        fetch('/api/admin/stats').then(function (r) { return r.json(); }).then(function (d) {
+          if (d.error) { pane.innerHTML = '<p class="modal-hint">' + esc(d.error) + '</p>'; return; }
+          var max = 1;
+          (d.days || []).forEach(function (x) { if (x.c > max) max = x.c; });
+          var bars = (d.days || []).map(function (x) {
+            var w = Math.round(100 * x.c / max);
+            return '<div class="stat-bar"><span class="d">' + esc(x.day) + '</span>' +
+              '<span class="track"><span class="fill" style="width:' + w + '%"></span></span><b>' + x.c + '</b></div>';
+          }).join('') || '<p class="modal-hint">No questions yet.</p>';
+          var recent = (d.recent || []).map(function (m) {
+            var txt = String(m.content || '');
+            if (txt.length > 140) txt = txt.slice(0, 140) + '…';
+            return '<div class="stat-recent"><span class="who">' + esc(m.username) + '</span> ' +
+              '<span class="when">· ' + esc(m.when) + (m.mode === 'report' ? ' · report scan' : '') + '</span>' +
+              '<span class="txt">' + esc(txt) + '</span></div>';
+          }).join('') || '<p class="modal-hint">No questions yet.</p>';
+          var top = (d.byUser || []).map(function (u) {
+            return '<div class="stat-bar"><span class="d">' + esc(u.username) + '</span>' +
+              '<span class="track"><span class="fill" style="width:' + Math.round(100 * u.c / ((d.byUser[0] && d.byUser[0].c) || 1)) + '%"></span></span><b>' + u.c + '</b></div>';
+          }).join('');
+          pane.innerHTML =
+            '<div class="stat-grid">' +
+              '<div class="stat-card"><b>' + d.total + '</b><span>Questions all time</span></div>' +
+              '<div class="stat-card"><b>' + d.today + '</b><span>Today</span></div>' +
+              '<div class="stat-card"><b>' + d.week + '</b><span>Last 7 days</span></div>' +
+              '<div class="stat-card"><b>' + d.month + '</b><span>Last 30 days</span></div>' +
+            '</div>' +
+            '<h4 style="margin:14px 0 6px;color:#e6c96a;font-size:13.5px">Questions per day (last 14 days)</h4>' + bars +
+            (top ? '<h4 style="margin:16px 0 6px;color:#e6c96a;font-size:13.5px">Most active users</h4>' + top : '') +
+            '<h4 style="margin:16px 0 6px;color:#e6c96a;font-size:13.5px">Latest questions</h4>' + recent;
+        }).catch(function () {
+          pane.innerHTML = '<p class="modal-hint">Could not load stats.</p>';
+        });
+      }
+
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.admin-tab').forEach(function (t) { t.classList.toggle('active', t === btn); });
+        document.querySelectorAll('.admin-pane').forEach(function (p) { p.classList.add('hidden'); });
+        pane.classList.remove('hidden');
+        loadStats();
+      });
     })();
   </script>
   <script>

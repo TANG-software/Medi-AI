@@ -605,6 +605,31 @@ app.get('/api/admin/sync-status', requireAuth, async (req, res) => {
   });
 });
 
+/* Admin analytics: how many questions were asked and when. Every question is
+   already stored as a role='user' message with a timestamp, so this reads the
+   existing data — nothing extra is tracked. */
+app.get('/api/admin/stats', requireAuth, async (req, res) => {
+  if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
+  const one = async (sql) => (await db.pool.query(sql)).rows;
+  try {
+    const [total, today, week, month, days, recent, byUser] = await Promise.all([
+      one("SELECT COUNT(*)::int AS c FROM messages WHERE role = 'user'"),
+      one("SELECT COUNT(*)::int AS c FROM messages WHERE role = 'user' AND created_at >= date_trunc('day', now())"),
+      one("SELECT COUNT(*)::int AS c FROM messages WHERE role = 'user' AND created_at >= now() - interval '7 days'"),
+      one("SELECT COUNT(*)::int AS c FROM messages WHERE role = 'user' AND created_at >= now() - interval '30 days'"),
+      one("SELECT to_char(created_at::date, 'DD Mon') AS day, COUNT(*)::int AS c FROM messages WHERE role = 'user' AND created_at >= now() - interval '14 days' GROUP BY created_at::date ORDER BY created_at::date"),
+      one("SELECT m.content, to_char(m.created_at, 'DD Mon HH24:MI') AS when, u.username, c.mode FROM messages m JOIN chats c ON c.id = m.chat_id JOIN users u ON u.id = c.user_id WHERE m.role = 'user' ORDER BY m.created_at DESC LIMIT 25"),
+      one("SELECT u.username, COUNT(*)::int AS c FROM messages m JOIN chats c ON c.id = m.chat_id JOIN users u ON u.id = c.user_id WHERE m.role = 'user' GROUP BY u.username ORDER BY c DESC LIMIT 10"),
+    ]);
+    res.json({
+      total: total[0].c, today: today[0].c, week: week[0].c, month: month[0].c,
+      days, recent, byUser,
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not load stats.' });
+  }
+});
+
 /* ------------------------------ whatsapp webhook ------------------ */
 app.get('/whatsapp/webhook', (req, res) => {
   // Meta webhook verification handshake
