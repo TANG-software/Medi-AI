@@ -382,6 +382,66 @@ app.post('/api/chat', requireAuth, async (req, res) => {
 });
 
 /* ------------------------------ admin ----------------------------- */
+/* ------------------------- guest mode (no account) -------------------------
+   Lets a visitor ask up to 3 questions per day straight from the login page,
+   without an account. Chat only (no reports), nothing stored, and the limit is
+   enforced per IP on the server so it cannot be farmed. Guests get 2 engines. */
+const GUEST_PER_DAY = 3;
+const guestHits = new Map(); /* ip -> [timestamps] */
+
+function guestPrune() {
+  if (guestHits.size < 5000) return;
+  const cut = Date.now() - 24 * 60 * 60 * 1000;
+  for (const [ip, arr] of guestHits) {
+    const keep = arr.filter((t) => t > cut);
+    if (keep.length) guestHits.set(ip, keep); else guestHits.delete(ip);
+  }
+}
+
+function guestAllowed(ip) {
+  guestPrune();
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  const arr = (guestHits.get(ip) || []).filter((t) => now - t < day);
+  if (arr.length >= GUEST_PER_DAY) { guestHits.set(ip, arr); return false; }
+  arr.push(now);
+  guestHits.set(ip, arr);
+  return true;
+}
+
+app.post('/api/guest-chat', async (req, res) => {
+  try {
+    const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const ip = fwd || req.ip || 'unknown';
+    const body = String((req.body || {}).text || '').trim();
+    if (!body) return res.status(400).json({ error: 'Type a question first.' });
+    if (body.length > 600) {
+      return res.status(400).json({ error: 'Guest questions can be up to 600 characters. Create a free account for longer questions.' });
+    }
+    if (!guestAllowed(ip)) {
+      return res.status(429).json({
+        error: 'That is all 3 free questions for today. Create a free account to keep asking — it takes about 20 seconds.',
+        guestLimit: true,
+      });
+    }
+    const lang = LANGUAGES.find((l) => l.code === (req.body.language || 'en-IN')) || LANGUAGES[0];
+    const emergency = detectEmergency(body);
+    const kbHits = await db.searchKB(body, 3);
+    const system = buildSystemPrompt({ mode: 'chat', languageName: lang.name, kbHits, emergency });
+    const messages = [{ role: 'system', content: system }, { role: 'user', content: body }];
+    const result = await ai.ensembleChat(messages, 2);
+    const used = (guestHits.get(ip) || []).length;
+    res.json({
+      reply: result.text,
+      emergency: !!emergency,
+      guest: true,
+      remaining: Math.max(0, GUEST_PER_DAY - used),
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not answer right now. Please try again in a moment.' });
+  }
+});
+
 app.get('/api/admin/users', requireAuth, async (req, res) => {
   if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
   res.json({ users: await db.listUsersAdmin() });

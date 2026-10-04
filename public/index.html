@@ -34,6 +34,7 @@
   <!-- Google AdSense verification — publisher ca-pub-2202766425562142 -->
   <link rel="preconnect" href="https://pagead2.googlesyndication.com">
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2202766425562142" crossorigin="anonymous"></script>
+  <script>window.MEDI_ADS_ENABLED = false; /* third-party ad formats: OFF while Google AdSense reviews the site. Set to true to switch them all back on. */</script>
   <link rel="preconnect" href="https://pl31418229.profitableratecpmnetwork.com">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -95,6 +96,17 @@
     #upsellModal .modal-card { text-align: center; }
     #upsellModal .modal-head { justify-content: space-between; }
 
+    /* Guest mode — try Medi AI without an account, on the login screen */
+    .guest-card { width: 100%; max-width: 420px; margin: 14px auto 0; background: rgba(10, 10, 14, 0.92); border: 1px solid rgba(212, 175, 55, 0.4); border-radius: 16px; padding: 14px; }
+    .guest-head { font-size: 14px; font-weight: 600; color: #e6c96a; margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
+    .guest-log { max-height: 240px; overflow-y: auto; font-size: 13.5px; }
+    .guest-q { color: #f5f2eb; font-weight: 600; margin: 8px 0 4px; }
+    .guest-a { color: #ddd8cc; white-space: pre-wrap; margin: 0 0 10px; line-height: 1.5; }
+    .guest-row { display: flex; gap: 8px; margin-top: 8px; }
+    .guest-row input { flex: 1; min-width: 0; background: #0d0d13; border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 10px; color: #f5f2eb; padding: 9px 11px; font-size: 14px; }
+    .guest-note { font-size: 11.5px; color: #a8a396; margin-top: 8px; }
+    .guest-cta { width: 100%; margin-top: 8px; }
+
     /* Public page links on the login screen */
     .auth-links { text-align: center; margin: 14px 0 4px; font-size: 13px; }
     .auth-links a { color: #d4af37; text-decoration: none; }
@@ -154,6 +166,15 @@
         <button type="submit" class="btn-gold" id="authSubmit">Create account</button>
       </form>
       <p class="auth-note">Not medical advice. In an emergency call 112 (India).</p>
+    </div>
+    <div class="guest-card">
+      <div class="guest-head"><i class="bi bi-chat-heart"></i> Try Medi AI — no account needed</div>
+      <div id="guestLog" class="guest-log"></div>
+      <div class="guest-row">
+        <input id="guestInput" type="text" maxlength="600" placeholder="Ask a health question…" aria-label="Ask a question as a guest">
+        <button id="guestSend" class="btn-gold small">Ask</button>
+      </div>
+      <div class="guest-note" id="guestNote">3 free questions per day. Not medical advice — in an emergency call 112.</div>
     </div>
     <div class="ad-auth" aria-label="Advertisement">
       <iframe class="ad-frame" src="/ad-native.html" title="Advertisement" scrolling="no" frameborder="0"></iframe>
@@ -451,6 +472,7 @@
        is visible. That keeps every impression viewable (what ad networks pay
        for) and never touches paid users or hidden ads. */
     (function () {
+      if (!window.MEDI_ADS_ENABLED) return; /* ads switched off */
       var BANNER_SEC = 60;   /* banner refresh interval (60s = industry-healthy minimum) */
       var NATIVE_SEC = 90;   /* native strip refresh interval (90s, safe) */
       var PAGE_SEC = 60;     /* min gap between page-switch refreshes */
@@ -482,6 +504,7 @@
        AI responses and read-aloud keep running; it is only a picture that
        politely says hello and leaves. */
     (function () {
+      if (!window.MEDI_ADS_ENABLED) return; /* ads switched off */
       var EVERY_MS = 60000;   /* one popup per minute */
       var SHOW_MS = 10000;    /* stays for 10 seconds */
       var pop = document.createElement('div');
@@ -515,6 +538,7 @@
        screen and paid plans stay clean.
        ROLLBACK: delete this one block and Social Bar is gone. */
     (function () {
+      if (!window.MEDI_ADS_ENABLED) return; /* ads switched off */
       var URL = 'https://celerycribbanish.com/bb/cf/fd/bbcffd4ce4090674225c751f71f738f0.js';
       var placed = false;
       function place() {
@@ -1008,6 +1032,85 @@
           speak('Hello! I am Medi AI, your health companion. How are you feeling today?', wrap.querySelector('#voiceTest'));
         });
       }
+    })();
+  </script>
+  <script>
+    /* Guest mode: ask up to 3 questions a day from the login screen, no account.
+       Answers are not saved anywhere. When the daily limit is reached the
+       visitor is invited to create a free account. */
+    (function () {
+      var input = document.getElementById('guestInput');
+      var btn = document.getElementById('guestSend');
+      var log = document.getElementById('guestLog');
+      var note = document.getElementById('guestNote');
+      if (!input || !btn || !log) return;
+      var busy = false;
+      function add(cls, text) {
+        var d = document.createElement('div');
+        d.className = cls;
+        d.textContent = text;
+        log.appendChild(d);
+        log.scrollTop = log.scrollHeight;
+        return d;
+      }
+      function ask() {
+        var q = (input.value || '').trim();
+        if (!q || busy) return;
+        busy = true;
+        btn.disabled = true;
+        input.value = '';
+        add('guest-q', q);
+        var thinking = add('guest-a', 'Medi AI is thinking…');
+        fetch('/api/guest-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: q })
+        }).then(function (r) {
+          return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+        }).then(function (res) {
+          thinking.remove();
+          if (!res.ok) {
+            add('guest-a', res.j.error || 'Something went wrong. Please try again.');
+            if (res.j.guestLimit) {
+              var b = document.createElement('button');
+              b.className = 'btn-gold guest-cta';
+              b.textContent = 'Create a free account';
+              b.addEventListener('click', function () {
+                try { document.getElementById('tabSignup').click(); } catch (e) {}
+                input.focus();
+              });
+              log.appendChild(b);
+              note.textContent = 'Daily guest limit reached. A free account gives you credits every week.';
+            }
+            return;
+          }
+          add('guest-a', res.j.reply || '');
+          if (res.j.emergency) {
+            var w = add('guest-a', 'If this may be an emergency, call 112 (India) or your local emergency number now.');
+            w.style.color = '#ff8f8f';
+          }
+          if (typeof res.j.remaining === 'number') {
+            note.textContent = res.j.remaining > 0
+              ? res.j.remaining + ' free guest question' + (res.j.remaining === 1 ? '' : 's') + ' left today. Create a free account for more.'
+              : 'That was your last free guest question today. Create a free account for more.';
+          }
+        }).catch(function () {
+          thinking.remove();
+          add('guest-a', 'Could not reach Medi AI. Please check your connection and try again.');
+        }).then(function () { busy = false; btn.disabled = false; input.focus(); });
+      }
+      btn.addEventListener('click', ask);
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ask(); } });
+    })();
+  </script>
+  <script>
+    /* Ads master switch: when MEDI_ADS_ENABLED is false no ad iframe is loaded
+       and no ad script runs, so the site is completely clean while Google
+       AdSense reviews it. Set the flag in the head back to true afterwards. */
+    (function () {
+      if (window.MEDI_ADS_ENABLED) return;
+      document.querySelectorAll('.ad-slot, .ad-auth').forEach(function (el) { el.style.display = 'none'; });
+      document.querySelectorAll('iframe.ad-frame').forEach(function (f) { try { f.src = 'about:blank'; } catch (e) {} });
     })();
   </script>
 </body>
