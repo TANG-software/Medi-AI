@@ -51,10 +51,17 @@
     .ad-native { height: 100px; max-height: 100px; }
     .ad-native .ad-frame { width: 100%; height: 100px; max-height: 100px; }
 
-    /* Native ad strip on the login screen — under the auth card.
-       The auth view is a flex ROW by default, which pushes the ad off-screen
-       on phones. Stack card + ad vertically so the ad is always visible. */
-    .auth-view { flex-direction: column; }
+    /* Login screen layout. Two things are fixed here:
+       1. the auth view is a flex ROW by default, which pushed the ad off-screen
+          on phones — so card + guest box stack vertically;
+       2. centring with justify-content:center clips the TOP of the content
+          (the "Medi AI" brand) on short phone screens, because the overflow
+          goes above the scrollable area. Using auto margins on the first and
+          last child centres when there is room and scrolls correctly when
+          there is not. */
+    .auth-view { flex-direction: column; justify-content: flex-start; }
+    .auth-card { margin-top: auto; }
+    .auth-links { margin: 14px 0 auto; }
     .ad-auth { width: 100%; max-width: 350px; margin: 16px auto 0; }
     .ad-auth .ad-frame { width: 100%; height: 170px; }
 
@@ -106,6 +113,13 @@
     .guest-row input { flex: 1; min-width: 0; background: #0d0d13; border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 10px; color: #f5f2eb; padding: 9px 11px; font-size: 14px; }
     .guest-note { font-size: 11.5px; color: #a8a396; margin-top: 8px; }
     .guest-cta { width: 100%; margin-top: 8px; }
+
+    /* Short phone screens: tighten the login card so everything fits */
+    @media (max-height: 760px) {
+      .auth-view { padding: 14px; }
+      .auth-card { padding: 24px 20px; }
+      .guest-log { max-height: 150px; }
+    }
 
     /* Public page links on the login screen */
     .auth-links { text-align: center; margin: 14px 0 4px; font-size: 13px; }
