@@ -442,6 +442,63 @@ app.post('/api/guest-chat', async (req, res) => {
   }
 });
 
+/* ------------------- guest entry: the full app, 3 credits -------------------
+   "Continue as guest" opens the real Medi AI interface without an account.
+   The guest is a throwaway account (no email, unusable password) on the free
+   plan with exactly 3 credits: the weekly refill is a week away, so 3 credits
+   is the whole allowance. Every feature works — chat, 50+ languages, Report
+   Lens (2 credits) — and when the credits run out the app's normal credit
+   check stops further questions and the UI invites the visitor to sign up. */
+const GUEST_LOGIN_PER_IP = 3;   /* new guest sessions per IP per day */
+const guestLogins = new Map();
+
+function guestLoginAllowed(ip) {
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  const arr = (guestLogins.get(ip) || []).filter((t) => now - t < day);
+  if (arr.length >= GUEST_LOGIN_PER_IP) { guestLogins.set(ip, arr); return false; }
+  arr.push(now);
+  guestLogins.set(ip, arr);
+  return true;
+}
+
+/* Throwaway guest accounts older than 7 days are cleared out — at most once
+   an hour, so it never slows a request down. */
+let lastGuestSweep = 0;
+async function sweepGuests() {
+  if (Date.now() - lastGuestSweep < 3600000) return;
+  lastGuestSweep = Date.now();
+  try {
+    await db.pool.query("DELETE FROM users WHERE username ~ '^guest_[0-9a-f]{8}$' AND created_at < now() - interval '7 days'");
+  } catch (e) { /* never fatal */ }
+}
+
+app.post('/api/guest-login', async (req, res) => {
+  try {
+    /* already in a guest session? keep the same throwaway account */
+    const existing = await currentUser(req);
+    if (existing && String(existing.username || '').indexOf('guest_') === 0) {
+      return res.json({ ok: true, user: publicUser(existing), guest: true });
+    }
+    const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const ip = fwd || req.ip || 'unknown';
+    if (!guestLoginAllowed(ip)) {
+      return res.status(429).json({ error: 'Too many guest sessions from this device today. Please create a free account to continue.' });
+    }
+    sweepGuests();
+    const crypto = require('crypto');
+    const username = 'guest_' + crypto.randomBytes(4).toString('hex');
+    const u = await db.createUser(username, null, crypto.randomBytes(12).toString('hex'), false);
+    await db.pool.query('UPDATE users SET credits = 3 WHERE id = $1', [u.id]);
+    const fresh = await db.getUser(u.id);
+    req.session.uid = fresh.id;
+    res.json({ ok: true, user: publicUser(fresh), guest: true });
+  } catch (e) {
+    console.error('[guest-login] ' + e.message);
+    res.status(500).json({ error: 'Could not start guest mode. Please try again.' });
+  }
+});
+
 app.get('/api/admin/users', requireAuth, async (req, res) => {
   if (!req.user.is_admin) return res.status(403).json({ error: 'Admins only.' });
   res.json({ users: await db.listUsersAdmin() });

@@ -121,7 +121,13 @@
       .guest-row { flex-wrap: wrap; }
       .guest-row .btn-gold { width: 100%; }
     }
+    .guest-sub { font-size: 13px; color: #c9c4b8; margin: 0 0 10px; }
     .guest-note { font-size: 11.5px; color: #a8a396; margin-top: 8px; }
+
+    /* Guest session bar inside the app */
+    .guest-bar { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 9px 12px; background: rgba(212, 175, 55, 0.1); border-bottom: 1px solid rgba(212, 175, 55, 0.3); font-size: 13px; color: #e6c96a; }
+    .guest-bar.out { background: rgba(230, 90, 90, 0.12); border-bottom-color: rgba(230, 90, 90, 0.4); color: #ffb3b3; }
+    .guest-bar .btn-gold.small { padding: 5px 12px; font-size: 12.5px; }
     .guest-cta { width: 100%; margin-top: 8px; }
 
     /* Short phone screens: tighten the login card so everything fits */
@@ -193,12 +199,9 @@
     </div>
     <div class="guest-card">
       <div class="guest-head"><i class="bi bi-chat-heart"></i> Try Medi AI — no account needed</div>
-      <div id="guestLog" class="guest-log"></div>
-      <div class="guest-row">
-        <textarea id="guestInput" rows="2" maxlength="600" placeholder="Ask a health question… (Shift+Enter for a new line)" aria-label="Ask a question as a guest"></textarea>
-        <button id="guestSend" class="btn-gold small">Ask</button>
-      </div>
-      <div class="guest-note" id="guestNote">3 free questions per day. Not medical advice — in an emergency call 112.</div>
+      <p class="guest-sub">Open the full app with <b>3 free credits</b> — ask questions, try Report Lens, in any language. Create an account when you want more.</p>
+      <button type="button" id="guestGo" class="btn-gold">Continue as guest — 3 free credits</button>
+      <div class="guest-note" id="guestNote">Not medical advice — in an emergency call 112.</div>
     </div>
     <div class="ad-auth" aria-label="Advertisement">
       <iframe class="ad-frame" src="/ad-native.html" title="Advertisement" scrolling="no" frameborder="0"></iframe>
@@ -1060,82 +1063,104 @@
     })();
   </script>
   <script>
-    /* Guest mode: ask up to 3 questions a day from the login screen, no account.
-       Answers are not saved anywhere. When the daily limit is reached the
-       visitor is invited to create a free account. */
+    /* "Continue as guest" — opens the FULL Medi AI app with 3 credits and no
+       account. The server creates a throwaway guest session; reloading the page
+       then boots the app as that guest, and the normal credit system enforces
+       the 3-credit limit (chat = 1 credit, Report Lens = 2). */
     (function () {
-      var input = document.getElementById('guestInput');
-      var btn = document.getElementById('guestSend');
-      var log = document.getElementById('guestLog');
+      var go = document.getElementById('guestGo');
       var note = document.getElementById('guestNote');
-      if (!input || !btn || !log) return;
-      var busy = false;
-      function add(cls, text) {
-        var d = document.createElement('div');
-        d.className = cls;
-        d.textContent = text;
-        log.appendChild(d);
-        log.scrollTop = log.scrollHeight;
-        return d;
-      }
-      function ask() {
-        var q = (input.value || '').trim();
-        if (!q || busy) return;
-        busy = true;
-        btn.disabled = true;
-        input.value = '';
-        input.style.height = '48px';
-        add('guest-q', q);
-        var thinking = add('guest-a', 'Medi AI is thinking…');
-        fetch('/api/guest-chat', {
+      if (!go) return;
+      go.addEventListener('click', function () {
+        go.disabled = true;
+        var was = go.textContent;
+        go.textContent = 'Opening Medi AI…';
+        fetch('/api/guest-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: q })
+          body: '{}'
         }).then(function (r) {
           return r.json().then(function (j) { return { ok: r.ok, j: j }; });
         }).then(function (res) {
-          thinking.remove();
-          if (!res.ok) {
-            add('guest-a', res.j.error || 'Something went wrong. Please try again.');
-            if (res.j.guestLimit) {
-              var b = document.createElement('button');
-              b.className = 'btn-gold guest-cta';
-              b.textContent = 'Create a free account';
-              b.addEventListener('click', function () {
-                try { document.getElementById('tabSignup').click(); } catch (e) {}
-                input.focus();
-              });
-              log.appendChild(b);
-              note.textContent = 'Daily guest limit reached. A free account gives you credits every week.';
-            }
-            return;
-          }
-          add('guest-a', res.j.reply || '');
-          if (res.j.emergency) {
-            var w = add('guest-a', 'If this may be an emergency, call 112 (India) or your local emergency number now.');
-            w.style.color = '#ff8f8f';
-          }
-          if (typeof res.j.remaining === 'number') {
-            note.textContent = res.j.remaining > 0
-              ? res.j.remaining + ' free guest question' + (res.j.remaining === 1 ? '' : 's') + ' left today. Create a free account for more.'
-              : 'That was your last free guest question today. Create a free account for more.';
-          }
+          if (res.ok) { location.reload(); return; }
+          go.disabled = false;
+          go.textContent = was;
+          if (note) note.textContent = res.j.error || 'Could not start guest mode. Please try again.';
         }).catch(function () {
-          thinking.remove();
-          add('guest-a', 'Could not reach Medi AI. Please check your connection and try again.');
-        }).then(function () { busy = false; btn.disabled = false; input.focus(); });
-      }
-      btn.addEventListener('click', ask);
-      input.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(); }
+          go.disabled = false;
+          go.textContent = was;
+          if (note) note.textContent = 'Could not reach Medi AI. Check your connection and try again.';
+        });
       });
-      /* grow with the question so the whole text stays visible */
-      function grow() {
-        input.style.height = 'auto';
-        input.style.height = Math.min(132, Math.max(48, input.scrollHeight)) + 'px';
+    })();
+  </script>
+  <script>
+    /* Guest session UI. While someone uses Medi AI as a guest:
+       · a slim bar shows how many of the 3 credits are left
+       · when they run out, the bar invites them to create a free account
+       · buying a plan is blocked (plans need a registered account)
+       · the "not enough credits" reply is reworded in guest language */
+    (function () {
+      function isGuest() {
+        try {
+          return typeof state !== 'undefined' && state.user &&
+                 String(state.user.username || '').indexOf('guest_') === 0;
+        } catch (e) { return false; }
       }
-      input.addEventListener('input', grow);
-      grow();
+      function signup() {
+        fetch('/api/logout', { method: 'POST' }).catch(function () {}).then(function () { location.reload(); });
+      }
+      var bar = null;
+      function render() {
+        if (!isGuest()) return;
+        var credits = (state.user && typeof state.user.credits === 'number') ? state.user.credits : 0;
+        if (!bar) {
+          var main = document.querySelector('.main');
+          if (!main) return;
+          bar = document.createElement('div');
+          bar.className = 'guest-bar';
+          var topbar = main.querySelector('.topbar');
+          if (topbar) main.insertBefore(bar, topbar.nextSibling);
+          else main.insertBefore(bar, main.firstChild);
+        }
+        var out = credits <= 0;
+        bar.classList.toggle('out', out);
+        bar.innerHTML = '<i class="bi bi-person-badge"></i> <span>' +
+          (out
+            ? 'You have used all 3 guest credits — create a free account to get more credits.'
+            : 'Guest mode · <b>' + credits + '</b> credit' + (credits === 1 ? '' : 's') + ' left') +
+          '</span> <button type="button" id="guestBarSignup" class="btn-gold small">Create free account</button>';
+        var b = bar.querySelector('#guestBarSignup');
+        if (b) b.addEventListener('click', signup);
+      }
+      setInterval(render, 1000);
+
+      /* plans are for registered accounts */
+      document.addEventListener('click', function (e) {
+        var t = e.target && e.target.closest ? e.target.closest('[data-buy]') : null;
+        if (!t || !isGuest()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof toast === 'function') {
+          toast('Create a free account first — plans work on registered accounts. It takes about 20 seconds.');
+        }
+        render();
+      }, true);
+
+      /* guest-specific wording when the credits are gone */
+      var origFetch = window.fetch.bind(window);
+      window.fetch = function (input, init) {
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        var p = origFetch(input, init);
+        if (url.indexOf('/api/chat') === -1 || !isGuest()) return p;
+        return p.then(function (r) {
+          if (r.status !== 402) return r;
+          return r.json().then(function (j) {
+            j.error = 'You have used all 3 guest credits. Create a free account to get more credits and keep your chats.';
+            return new Response(JSON.stringify(j), { status: 402, headers: { 'Content-Type': 'application/json' } });
+          });
+        });
+      };
     })();
   </script>
   <script>
