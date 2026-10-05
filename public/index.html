@@ -157,6 +157,30 @@
     .stat-recent .when { opacity: 0.6; }
     .stat-recent .txt { opacity: 0.85; display: block; margin-top: 2px; }
 
+    /* ---- Chat box cleanup ----
+       The mode selector and the camera button moved out of the composer to the
+       top bar, so the composer is just: attach · type · voice · send. The two
+       originals stay in the DOM (hidden) so the app's own handlers keep working;
+       the top-bar buttons forward clicks to them. */
+    #modeBtn, #cameraBtn { display: none !important; }
+    button.mode-badge { font-family: inherit; cursor: pointer; }
+    button.mode-badge:hover { border-color: var(--gold); color: var(--gold); }
+    .mode-menu.mode-menu-top { bottom: auto; top: 62px; }
+
+    /* ---- Answers fill the screen instead of sitting in a narrow column ---- */
+    @media (max-width: 719px) {
+      .messages { padding: 12px 6px 6px; }
+      .msg { max-width: 100%; gap: 8px; }
+      .msg .msg-ava { display: none; }
+      .msg .bubble { flex: 1; }
+      .emergency-banner { max-width: 100%; }
+    }
+    @media (min-width: 720px) {
+      .messages { padding: 22px 4% 10px; }
+      .msg { max-width: 100%; }
+      .emergency-banner { max-width: 100%; }
+    }
+
     /* Approximate local-currency line on the pricing cards */
     .price-alt { display: block; font-size: 12px; font-weight: 400; opacity: 0.75; margin-top: 3px; }
 
@@ -263,7 +287,8 @@
         <button class="icon-btn" id="menuBtn" aria-label="Open menu"><i class="bi bi-list"></i></button>
         <div class="topbar-brand"><i class="bi bi-activity"></i> Medi <span>AI</span></div>
         <div class="topbar-right">
-          <span class="mode-badge" id="modeBadge"><i class="bi bi-chat-heart"></i> Chat</span>
+          <button type="button" class="mode-badge" id="modeBadge" title="Change mode — chat or Report Lens"><i class="bi bi-chat-heart"></i> Chat</button>
+          <button type="button" class="icon-btn" id="topCameraBtn" title="Scan a report with camera" aria-label="Scan a medical report with your camera"><i class="bi bi-camera-fill"></i></button>
           <span class="credit-pill top-credits"><i class="bi bi-lightning-charge"></i> <b id="creditCountTop">0</b></span>
         </div>
       </header>
@@ -881,6 +906,30 @@
         document.querySelectorAll('.admin-pane').forEach(function (p) { p.classList.add('hidden'); });
         pane.classList.remove('hidden');
         loadStats();
+      });
+    })();
+  </script>
+  <script>
+    /* Top-bar chat controls. The mode selector and the camera moved out of the
+       composer: tapping the mode badge opens the mode menu (now positioned under
+       the top bar) and the camera button starts a report scan. Both forward to
+       the original composer buttons, which stay in the DOM (hidden) so the app's
+       own handlers keep working. stopPropagation keeps the app's
+       click-outside-to-close rule from closing the menu in the same tap. */
+    (function () {
+      var badge = document.getElementById('modeBadge');
+      var cam = document.getElementById('topCameraBtn');
+      var menu = document.getElementById('modeMenu');
+      if (menu) menu.classList.add('mode-menu-top');
+      if (badge) badge.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var b = document.getElementById('modeBtn');
+        if (b) b.click();
+      });
+      if (cam) cam.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var b = document.getElementById('cameraBtn');
+        if (b) b.click();
       });
     })();
   </script>
