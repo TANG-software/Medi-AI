@@ -167,6 +167,15 @@
     button.mode-badge:hover { border-color: var(--gold); color: var(--gold); }
     .mode-menu.mode-menu-top { bottom: auto; top: 62px; }
 
+    /* ---- AI answers have no bubble ----
+       The assistant's reply reads as plain text on the background (like a
+       document), while your own prompt keeps its bubble so the two are still
+       easy to tell apart. */
+    .msg.ai .bubble {
+      background: transparent; border: 0; box-shadow: none;
+      padding: 4px 0 6px;
+    }
+
     /* ---- Answers fill the screen instead of sitting in a narrow column ---- */
     @media (max-width: 719px) {
       .messages { padding: 12px 6px 6px; }
