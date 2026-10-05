@@ -109,8 +109,18 @@
     .guest-log { max-height: 240px; overflow-y: auto; font-size: 13.5px; }
     .guest-q { color: #f5f2eb; font-weight: 600; margin: 8px 0 4px; }
     .guest-a { color: #ddd8cc; white-space: pre-wrap; margin: 0 0 10px; line-height: 1.5; }
-    .guest-row { display: flex; gap: 8px; margin-top: 8px; }
-    .guest-row input { flex: 1; min-width: 0; background: #0d0d13; border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 10px; color: #f5f2eb; padding: 9px 11px; font-size: 14px; }
+    .guest-row { display: flex; gap: 8px; margin-top: 8px; align-items: flex-end; }
+    .guest-row textarea {
+      flex: 1; min-width: 0; min-height: 48px; max-height: 132px; resize: none;
+      background: #0d0d13; border: 1px solid rgba(212, 175, 55, 0.35); border-radius: 10px;
+      color: #f5f2eb; padding: 12px; font-size: 14.5px; line-height: 1.45; font-family: inherit;
+    }
+    .guest-row textarea::placeholder { color: #8f8a7c; opacity: 1; }
+    .guest-row textarea:focus { outline: none; border-color: #d4af37; }
+    @media (max-width: 430px) {
+      .guest-row { flex-wrap: wrap; }
+      .guest-row .btn-gold { width: 100%; }
+    }
     .guest-note { font-size: 11.5px; color: #a8a396; margin-top: 8px; }
     .guest-cta { width: 100%; margin-top: 8px; }
 
@@ -185,7 +195,7 @@
       <div class="guest-head"><i class="bi bi-chat-heart"></i> Try Medi AI — no account needed</div>
       <div id="guestLog" class="guest-log"></div>
       <div class="guest-row">
-        <input id="guestInput" type="text" maxlength="600" placeholder="Ask a health question…" aria-label="Ask a question as a guest">
+        <textarea id="guestInput" rows="2" maxlength="600" placeholder="Ask a health question… (Shift+Enter for a new line)" aria-label="Ask a question as a guest"></textarea>
         <button id="guestSend" class="btn-gold small">Ask</button>
       </div>
       <div class="guest-note" id="guestNote">3 free questions per day. Not medical advice — in an emergency call 112.</div>
@@ -1074,6 +1084,7 @@
         busy = true;
         btn.disabled = true;
         input.value = '';
+        input.style.height = '48px';
         add('guest-q', q);
         var thinking = add('guest-a', 'Medi AI is thinking…');
         fetch('/api/guest-chat', {
@@ -1115,7 +1126,16 @@
         }).then(function () { busy = false; btn.disabled = false; input.focus(); });
       }
       btn.addEventListener('click', ask);
-      input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ask(); } });
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ask(); }
+      });
+      /* grow with the question so the whole text stays visible */
+      function grow() {
+        input.style.height = 'auto';
+        input.style.height = Math.min(132, Math.max(48, input.scrollHeight)) + 'px';
+      }
+      input.addEventListener('input', grow);
+      grow();
     })();
   </script>
   <script>
