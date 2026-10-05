@@ -241,7 +241,7 @@
     </div>
     <p class="auth-links">
       <a href="/how-it-works.html">How it works</a> &middot; <a href="/health-topics.html">Health topics</a> &middot; <a href="/faq.html">FAQ</a><br>
-      <a href="/about.html">About</a> &middot; <a href="/privacy.html">Privacy Policy</a> &middot; <a href="/terms.html">Terms of Use</a> &middot; <a href="/refunds.html">Refunds</a>
+      <a href="/about.html">About</a> &middot; <a href="/privacy.html">Privacy Policy</a> &middot; <a href="/terms.html">Terms of Use</a> &middot; <a href="/refunds.html">Refunds</a> &middot; <a href="/delivery.html">Delivery</a>
     </p>
   </section>
 
@@ -451,6 +451,25 @@
         });
         var cm = document.getElementById('couponMsg');
         if (cm) cm.textContent = 'Credit coupons add credits instantly; discount coupons apply at checkout. Free plan credits refresh weekly; paid plan credits refresh daily. Pay with UPI, cards, netbanking or wallets via Razorpay.';
+        /* Payments & refunds note — plain-language billing info on the pricing
+           page (this is also what payment providers look for when reviewing a
+           site, and it helps buyers abroad know how they will be charged). */
+        var pv = document.getElementById('pageView');
+        if (pv && !document.getElementById('payNote')) {
+          var note = document.createElement('div');
+          note.id = 'payNote';
+          note.className = 'panel';
+          note.innerHTML =
+            '<h3>Payments &amp; refunds</h3>' +
+            '<p class="modal-hint">Payments are handled by <b>Razorpay</b> — UPI, cards, netbanking and wallets. ' +
+            'Prices are charged in Indian Rupees (₹); visitors from other countries also see an approximate price in their own currency, ' +
+            'and their bank converts the amount. Plans are prepaid for the period shown and are not auto-renewed unless that is stated at checkout.</p>' +
+            '<p class="modal-hint">Refunds: you get a <b>full refund</b> if you were charged twice, if the credits were never added, or for an unused accidental purchase reported within 7 days. ' +
+            'Read the <a href="/refunds.html" target="_blank" rel="noopener">Refund &amp; Cancellation Policy</a> and the ' +
+            '<a href="/delivery.html" target="_blank" rel="noopener">Delivery &amp; Shipping Policy</a>. ' +
+            'Any billing question? Email <a href="mailto:tangydust@zohomail.in">tangydust@zohomail.in</a> — we reply within 3 business days.</p>';
+          pv.appendChild(note);
+        }
       };
     }
   </script>
