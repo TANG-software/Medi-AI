@@ -777,6 +777,7 @@ function renderAbout() {
         <p>Metangy helps you understand health questions and medical reports in simple language, in <b>50+ languages</b> — all 22 official Indian languages included.</p>
         <p>It combines <b>multiple AI engines</b> with a curated medical knowledge base, automatically falls back if one engine is busy, and detects emergencies. Higher plans get more engines working together on every answer.</p>
         <p><b>Features:</b> medical chat, Report Lens (photo → explanation), voice input, read-aloud answers, saved reports, plans & credits, coupons, dashboard, admin tools and a WhatsApp bot.</p>
+        <p><b>Who builds it:</b> Metangy was built by <b>tangydust (Nirvan)</b>, a 14-year-old developer, over six months — live since September 2026.</p>
         <p><b>Important:</b> Metangy provides general information, not a medical diagnosis. In an emergency, call <b>112</b> (India) or your local emergency number.</p>
         <p class="sponsor-note">Sponsored: <a class="sponsor-link" href="https://www.profitableratecpmnetwork.com/dcsirxet?key=7d7a112e8da8fcd974538848cf34cbe0" target="_blank" rel="noopener sponsored">health offers for our readers</a> — keeping Metangy free.</p>
       </div>
