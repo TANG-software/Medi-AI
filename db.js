@@ -1,5 +1,5 @@
 /**
- * Medi AI — database layer (PostgreSQL)
+ * Metangy — database layer (PostgreSQL)
  * Works with any Postgres: Neon (recommended, free), Supabase, Railway…
  * Set DATABASE_URL in the environment. All data survives redeploys.
  */
@@ -279,7 +279,7 @@ async function init() {
   const missing = KB_SEED.filter((e) => !existing.has(e[0].toLowerCase()));
   if (missing.length) {
     for (const e of missing) {
-      const row = e.length >= 7 ? e : e.concat(['Medi AI Knowledge Base', null]);
+      const row = e.length >= 7 ? e : e.concat(['Metangy Knowledge Base', null]);
       await pool.query(
         'INSERT INTO kb (topic, symptoms, summary, advice, severity, source, source_url) VALUES ($1,$2,$3,$4,$5,$6,$7)', row);
     }

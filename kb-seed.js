@@ -1,5 +1,5 @@
 /**
- * Medi AI — structured medical knowledge seed data (reference copy)
+ * Metangy — structured medical knowledge seed data (reference copy)
  * Ported from MediMind v36. Covers: brand medicines (India), drug
  * interactions, and home remedies.
  *

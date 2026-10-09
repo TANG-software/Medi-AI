@@ -1,6 +1,6 @@
 {
-  "name": "Medi AI — Your Health Companion",
-  "short_name": "Medi AI",
+  "name": "Metangy — Your Health Companion",
+  "short_name": "Metangy",
   "description": "Multilingual medical AI assistant: chat, report scanning, 50+ languages.",
   "start_url": "/",
   "display": "standalone",

@@ -1,5 +1,5 @@
 /* ================================================================
-   Medi AI — client app
+   Metangy — client app
    Auth (email) · chats · multi-mode composer · voice input · Report Lens
    (OCR on-device) · settings · admin · PWA
    ================================================================ */
@@ -337,7 +337,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) stopS
 function showEmergencyBanner() {
   const b = document.createElement('div');
   b.className = 'emergency-banner';
-  b.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i><div><b>Emergency warning:</b> Medi AI detected this may be urgent. If symptoms are severe or life-threatening, <b>call 112 (India) or your local emergency number NOW.</b></div>`;
+  b.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i><div><b>Emergency warning:</b> Metangy detected this may be urgent. If symptoms are severe or life-threatening, <b>call 112 (India) or your local emergency number NOW.</b></div>`;
   $('#messages').appendChild(b);
 }
 
@@ -383,7 +383,7 @@ async function send(textOverride) {
     const t = $('#typingMsg');
     if (t) t.remove();
     if (r.emergency) showEmergencyBanner();
-    $('#messages').appendChild(buildMsg('ai', r.reply, r.engines > 1 ? 'Medi AI · Multi-engine answer' : 'Medi AI', r.kbTopics));
+    $('#messages').appendChild(buildMsg('ai', r.reply, r.engines > 1 ? 'Metangy · Multi-engine answer' : 'Metangy', r.kbTopics));
     state.chatId = r.chatId;
     updateCredits(r.credits);
     state.user.credits = r.credits;
@@ -430,7 +430,7 @@ function setMode(mode) {
   $('#modeBadge').innerHTML = `<i class="bi ${m.icon}"></i> ${m.label}`;
   $('#input').placeholder = mode === 'report'
     ? 'Ask about a report, or tap + to upload a photo…'
-    : 'Ask Medi AI anything…';
+    : 'Ask Metangy anything…';
 }
 $('#modeBtn').addEventListener('click', (e) => {
   e.stopPropagation();
@@ -638,7 +638,7 @@ function registerSW() {
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   state.deferredInstall = e;
-  toast('Install Medi AI as an app from your browser menu!');
+  toast('Install Metangy as an app from your browser menu!');
 });
 
 boot();
@@ -724,7 +724,7 @@ async function openReport(id) {
       <button class="btn-gold small" id="pageCloseBtn">Back</button></div>
     <p class="modal-hint">Analyzed on ${esc(rep.created_at || '')}</p>
     <div class="panel"><h3>Extracted text</h3><pre class="pre-wrap">${esc(rep.extracted)}</pre></div>
-    <div class="panel gold-border"><h3>Medi AI analysis</h3><div class="md">${md(rep.analysis)}</div></div>`;
+    <div class="panel gold-border"><h3>Metangy analysis</h3><div class="md">${md(rep.analysis)}</div></div>`;
 }
 
 async function renderPricing() {
@@ -769,16 +769,16 @@ async function renderPricing() {
 
 function renderAbout() {
   $('#pageView').innerHTML = `
-    <div class="page-head"><h2><i class="bi bi-info-circle"></i> About Medi AI</h2>
+    <div class="page-head"><h2><i class="bi bi-info-circle"></i> About Metangy</h2>
       <button class="btn-gold small" id="pageCloseBtn">Back to chat</button></div>
     <div class="panel">
       <h3>Your multilingual health companion</h3>
       <div class="md">
-        <p>Medi AI helps you understand health questions and medical reports in simple language, in <b>50+ languages</b> — all 22 official Indian languages included.</p>
+        <p>Metangy helps you understand health questions and medical reports in simple language, in <b>50+ languages</b> — all 22 official Indian languages included.</p>
         <p>It combines <b>multiple AI engines</b> with a curated medical knowledge base, automatically falls back if one engine is busy, and detects emergencies. Higher plans get more engines working together on every answer.</p>
         <p><b>Features:</b> medical chat, Report Lens (photo → explanation), voice input, read-aloud answers, saved reports, plans & credits, coupons, dashboard, admin tools and a WhatsApp bot.</p>
-        <p><b>Important:</b> Medi AI provides general information, not a medical diagnosis. In an emergency, call <b>112</b> (India) or your local emergency number.</p>
-        <p class="sponsor-note">Sponsored: <a class="sponsor-link" href="https://www.profitableratecpmnetwork.com/dcsirxet?key=7d7a112e8da8fcd974538848cf34cbe0" target="_blank" rel="noopener sponsored">health offers for our readers</a> — keeping Medi AI free.</p>
+        <p><b>Important:</b> Metangy provides general information, not a medical diagnosis. In an emergency, call <b>112</b> (India) or your local emergency number.</p>
+        <p class="sponsor-note">Sponsored: <a class="sponsor-link" href="https://www.profitableratecpmnetwork.com/dcsirxet?key=7d7a112e8da8fcd974538848cf34cbe0" target="_blank" rel="noopener sponsored">health offers for our readers</a> — keeping Metangy free.</p>
       </div>
     </div>`;
 }
@@ -820,7 +820,7 @@ async function buyPlan(plan) {
       amount: r.amount,
       currency: r.currency,
       order_id: r.orderId,
-      name: 'Medi AI',
+      name: 'Metangy',
       description: 'Plan upgrade',
       theme: { color: '#d4af37' },
       prefill: { name: state.user.username },

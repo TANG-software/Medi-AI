@@ -1,7 +1,7 @@
 {
   "name": "medi-ai",
   "version": "2.0.0",
-  "description": "Medi AI — multilingual medical AI assistant with 10 AI engines, report scanning and 50+ languages.",
+  "description": "Metangy — multilingual medical AI assistant with 10 AI engines, report scanning and 50+ languages.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Medi AI — Free AI Health Assistant & Medical Report Scanner</title>
-  <meta name="description" content="Medi AI is a free multilingual AI health assistant. Chat about symptoms, medicines and lab reports in 50+ languages, and scan any medical report for a plain-language explanation.">
+  <title>Metangy — Free AI Health Assistant & Medical Report Scanner</title>
+  <meta name="description" content="Metangy is a free multilingual AI health assistant. Chat about symptoms, medicines and lab reports in 50+ languages, and scan any medical report for a plain-language explanation.">
   <meta name="theme-color" content="#060609">
   <meta property="og:url" content="https://medi-ai-zrn6.onrender.com/">
   <link rel="canonical" href="https://medi-ai-zrn6.onrender.com/">
@@ -12,14 +12,14 @@
   {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    "name": "Medi AI",
-    "alternateName": "MediAI",
+    "name": "Metangy",
+    "alternateName": "Metangy",
     "url": "https://medi-ai-zrn6.onrender.com/",
     "applicationCategory": "HealthApplication",
     "operatingSystem": "Web",
     "inLanguage": ["en", "hi", "ta", "te", "bn", "mr", "ml", "kn", "gu", "pa"],
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
-    "description": "Medi AI — free multilingual AI health assistant: symptom chat, medicine information and medical report scanning in 50+ languages."
+    "description": "Metangy — free multilingual AI health assistant: symptom chat, medicine information and medical report scanning in 50+ languages."
   }
   </script>
   <link rel="manifest" href="/manifest.webmanifest">
@@ -27,7 +27,7 @@
   <link rel="apple-touch-icon" href="/icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta property="og:title" content="Medi AI — Free AI Health Assistant & Medical Report Scanner">
+  <meta property="og:title" content="Metangy — Free AI Health Assistant & Medical Report Scanner">
   <meta property="og:description" content="Multilingual medical AI assistant with 10 AI engines, report scanning and 50+ languages.">
   <meta property="og:type" content="website">
 
@@ -55,7 +55,7 @@
        1. the auth view is a flex ROW by default, which pushed the ad off-screen
           on phones — so card + guest box stack vertically;
        2. centring with justify-content:center clips the TOP of the content
-          (the "Medi AI" brand) on short phone screens, because the overflow
+          (the "Metangy" brand) on short phone screens, because the overflow
           goes above the scrollable area. Using auto margins on the first and
           last child centres when there is room and scrolls correctly when
           there is not. */
@@ -103,7 +103,7 @@
     #upsellModal .modal-card { text-align: center; }
     #upsellModal .modal-head { justify-content: space-between; }
 
-    /* Guest mode — try Medi AI without an account, on the login screen */
+    /* Guest mode — try Metangy without an account, on the login screen */
     .guest-card { width: 100%; max-width: 420px; margin: 14px auto 0; background: rgba(10, 10, 14, 0.92); border: 1px solid rgba(212, 175, 55, 0.4); border-radius: 16px; padding: 14px; }
     .guest-head { font-size: 14px; font-weight: 600; color: #e6c96a; margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
     .guest-log { max-height: 240px; overflow-y: auto; font-size: 13.5px; }
@@ -211,14 +211,14 @@
   <!-- ============ AUTH VIEW ============ -->
   <section id="authView" class="auth-view hidden">
     <div class="auth-card">
-      <div class="brand"><i class="bi bi-activity"></i> Medi <span>AI</span></div>
+      <div class="brand"><i class="bi bi-activity"></i> <span>Metangy</span></div>
       <p class="brand-sub">Your multilingual health companion</p>
       <div id="authError" class="auth-error hidden"></div>
       <div class="auth-tabs">
         <button id="tabSignup" class="auth-tab active">Sign up</button>
         <button id="tabLogin" class="auth-tab">Log in</button>
       </div>
-      <p class="auth-switch-note">Please log in if you already have an account on Medi AI.</p>
+      <p class="auth-switch-note">Please log in if you already have an account on Metangy.</p>
       <form id="authForm" autocomplete="off">
         <label id="emailLabel">Email</label>
         <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" required>
@@ -231,7 +231,7 @@
       <p class="auth-note">Not medical advice. In an emergency call 112 (India).</p>
     </div>
     <div class="guest-card">
-      <div class="guest-head"><i class="bi bi-chat-heart"></i> Try Medi AI — no account needed</div>
+      <div class="guest-head"><i class="bi bi-chat-heart"></i> Try Metangy — no account needed</div>
       <p class="guest-sub">Open the full app with <b>3 free credits</b> — ask questions, try Report Lens, in any language. Create an account when you want more.</p>
       <button type="button" id="guestGo" class="btn-gold">Continue as guest — 3 free credits</button>
       <div class="guest-note" id="guestNote">Not medical advice — in an emergency call 112.</div>
@@ -294,7 +294,7 @@
     <main class="main">
       <header class="topbar">
         <button class="icon-btn" id="menuBtn" aria-label="Open menu"><i class="bi bi-list"></i></button>
-        <div class="topbar-brand"><i class="bi bi-activity"></i> Medi <span>AI</span></div>
+        <div class="topbar-brand"><i class="bi bi-activity"></i> <span>Metangy</span></div>
         <div class="topbar-right">
           <button type="button" class="mode-badge" id="modeBadge" title="Change mode — chat or Report Lens"><i class="bi bi-chat-heart"></i> Chat</button>
           <button type="button" class="icon-btn" id="topCameraBtn" title="Scan a report with camera" aria-label="Scan a medical report with your camera"><i class="bi bi-camera-fill"></i></button>
@@ -308,7 +308,7 @@
         <div class="welcome" id="welcome">
           <div class="welcome-icon"><i class="bi bi-activity"></i></div>
           <h1>How can I help your health today?</h1>
-          <p>Ask anything — symptoms, medicines, reports.<br>Type in <b>any language</b>: Hindi, Hinglish, English, Tamil…<br>Medi AI replies in <b>your</b> language, automatically.</p>
+          <p>Ask anything — symptoms, medicines, reports.<br>Type in <b>any language</b>: Hindi, Hinglish, English, Tamil…<br>Metangy replies in <b>your</b> language, automatically.</p>
           <div class="suggestions">
             <button class="suggestion" data-q="I have a headache and mild fever since yesterday. What should I do?">I have a headache and fever…</button>
             <button class="suggestion" data-q="Explain in simple terms what HbA1c means in my diabetes report.">Explain my diabetes report</button>
@@ -330,12 +330,12 @@
           <button class="icon-btn" id="modeBtn" title="Select mode" aria-label="Select chat mode"><i class="bi bi-sliders"></i></button>
           <button class="icon-btn" id="attachBtn" title="Add image / photo (Report Lens)" aria-label="Upload a report image"><i class="bi bi-plus-square"></i></button>
           <input type="file" id="fileInput" accept="image/*" hidden>
-          <textarea id="input" rows="1" placeholder="Ask Medi AI anything…" maxlength="8000" aria-label="Type your health question"></textarea>
+          <textarea id="input" rows="1" placeholder="Ask Metangy anything…" maxlength="8000" aria-label="Type your health question"></textarea>
           <button class="icon-btn" id="cameraBtn" title="Scan a report with camera" aria-label="Scan a medical report with your camera"><i class="bi bi-camera-fill"></i></button>
           <button class="icon-btn" id="micBtn" title="Voice input" aria-label="Voice input"><i class="bi bi-mic"></i></button>
           <button class="icon-btn send" id="sendBtn" title="Send" aria-label="Send message"><i class="bi bi-arrow-up-circle-fill"></i></button>
         </div>
-        <p class="disclaimer">Medi AI provides general information — not a medical diagnosis. In emergencies call 112 (India).</p>
+        <p class="disclaimer">Metangy provides general information — not a medical diagnosis. In emergencies call 112 (India).</p>
         <div class="ad-slot ad-native" aria-label="Advertisement">
           <iframe class="ad-frame" src="/ad-native.html" title="Advertisement" scrolling="no" frameborder="0" loading="lazy"></iframe>
         </div>
@@ -857,7 +857,7 @@
             card.innerHTML = '<b><i class="bi bi-droplet-half"></i> Need a test done?</b> ' +
               'Book an at-home sample collection through a partner lab:' +
               '<div class="lab-links">' + links + '</div>' +
-              '<div class="lab-note">Partner links — Medi AI may earn a commission. Prices vary by city.</div>';
+              '<div class="lab-note">Partner links — Metangy may earn a commission. Prices vary by city.</div>';
             n.parentNode.insertBefore(card, n.nextSibling);
             /* subscription popup (free users only) a moment later */
             if (free()) setTimeout(showUpsell, 1400);
@@ -1134,13 +1134,13 @@
         rR.addEventListener('input', function () { P.rate = parseFloat(rR.value); localStorage.setItem('mediRate', P.rate); syncLabels(); });
         pR.addEventListener('input', function () { P.pitch = parseFloat(pR.value); localStorage.setItem('mediPitch', P.pitch); syncLabels(); });
         wrap.querySelector('#voiceTest').addEventListener('click', function () {
-          speak('Hello! I am Medi AI, your health companion. How are you feeling today?', wrap.querySelector('#voiceTest'));
+          speak('Hello! I am Metangy, your health companion. How are you feeling today?', wrap.querySelector('#voiceTest'));
         });
       }
     })();
   </script>
   <script>
-    /* "Continue as guest" — opens the FULL Medi AI app with 3 credits and no
+    /* "Continue as guest" — opens the FULL Metangy app with 3 credits and no
        account. The server creates a throwaway guest session; reloading the page
        then boots the app as that guest, and the normal credit system enforces
        the 3-credit limit (chat = 1 credit, Report Lens = 2). */
@@ -1151,7 +1151,7 @@
       go.addEventListener('click', function () {
         go.disabled = true;
         var was = go.textContent;
-        go.textContent = 'Opening Medi AI…';
+        go.textContent = 'Opening Metangy…';
         fetch('/api/guest-login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1166,13 +1166,13 @@
         }).catch(function () {
           go.disabled = false;
           go.textContent = was;
-          if (note) note.textContent = 'Could not reach Medi AI. Check your connection and try again.';
+          if (note) note.textContent = 'Could not reach Metangy. Check your connection and try again.';
         });
       });
     })();
   </script>
   <script>
-    /* Guest session UI. While someone uses Medi AI as a guest:
+    /* Guest session UI. While someone uses Metangy as a guest:
        · a slim bar shows how many of the 3 credits are left
        · when they run out, the bar invites them to create a free account
        · buying a plan is blocked (plans need a registered account)

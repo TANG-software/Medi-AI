@@ -1,5 +1,5 @@
 /**
- * Medi AI — multi-provider AI engine.
+ * Metangy — multi-provider AI engine.
  * 10 providers with a uniform interface + automatic fallback:
  * if the selected provider fails, the next available one is tried.
  * All keys come from environment variables — never hardcoded.

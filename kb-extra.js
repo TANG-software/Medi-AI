@@ -1,5 +1,5 @@
 /**
- * Medi AI — knowledge base expansion pack.
+ * Metangy — knowledge base expansion pack.
  * Loaded by server.js at boot: any topic not already in the database is
  * added once (existing topics are never duplicated or overwritten).
  *

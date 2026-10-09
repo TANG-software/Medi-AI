@@ -1,5 +1,5 @@
 /**
- * Medi AI — private accuracy test harness (for the owner only; not shipped to users)
+ * Metangy — private accuracy test harness (for the owner only; not shipped to users)
  * ---------------------------------------------------------------------------
  * Run from the project root:
  *   DATABASE_URL=... GROQ_API_KEY=... node tests/accuracy.js
@@ -150,7 +150,7 @@ const QUESTIONS = [
     try {
       let kbHits = [];
       try { kbHits = await db.searchKB(q, 3); } catch (e) { /* no db */ }
-      const system = 'You are Medi AI, a careful medical information assistant. ' +
+      const system = 'You are Metangy, a careful medical information assistant. ' +
         'Give clear, practical, evidence-based general health information. For anything serious ' +
         'tell the user to see a qualified doctor. Reply in English.';
       const messages = [{ role: 'system', content: system }, { role: 'user', content: q }];
@@ -166,7 +166,7 @@ const QUESTIONS = [
 
   const d = new Date().toISOString().slice(0, 10);
   const pct = Math.round((pass / QUESTIONS.length) * 100);
-  let md = `# Medi AI accuracy report — ${d}\n\n` +
+  let md = `# Metangy accuracy report — ${d}\n\n` +
     `**Score: ${pass}/${QUESTIONS.length} (${pct}%)** — engines: ${ai.available().length} — ${kbNote}\n\n` +
     `Run again with: \`DATABASE_URL=... GROQ_API_KEY=... node tests/accuracy.js\`\n\n` +
     `| # | Question | Ref | Result | Missing keys |\n|---|---|---|---|---|\n`;

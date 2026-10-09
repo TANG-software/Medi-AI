@@ -1,4 +1,4 @@
-# Medi AI — Your Health Companion
+# Metangy — Your Health Companion
 
 A multilingual medical AI assistant web app (PWA-ready):
 
@@ -10,7 +10,7 @@ A multilingual medical AI assistant web app (PWA-ready):
 - **Emergency detection** — urgent queries trigger a prominent emergency warning
 - **PWA** — installable on Android/iOS home screens; ready to package for the Google Play Store
 
-> Medi AI gives general health information, not medical diagnoses. Always consult a qualified doctor. In an emergency call 112 (India).
+> Metangy gives general health information, not medical diagnoses. Always consult a qualified doctor. In an emergency call 112 (India).
 
 ## Quick start (local)
 
@@ -70,7 +70,7 @@ public/manifest.webmanifest
 - **Pricing page** — plans with Razorpay checkout (needs `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET`)
 - **Coupons** — admin creates them (instant credits or % off); users redeem on the Pricing page
 - **Report a problem** — users send bug reports; admins view and close them
-- **About page** — what Medi AI is and its safety limits
+- **About page** — what Metangy is and its safety limits
 - **Admin panel** — tabs: Users, Knowledge (add/delete KB topics), Coupons, Problems, Status
 - **WhatsApp bot** — `/whatsapp/webhook` answers health questions via WhatsApp (needs `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_ID`)
 - **AI model auto-discovery** — if a provider retires a model, the app switches automatically

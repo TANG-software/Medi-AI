@@ -1,5 +1,5 @@
 /**
- * Medi AI — production server
+ * Metangy — production server
  * Express + PostgreSQL (Neon). Auth with email, chats, credits & plans,
  * multi-AI with fallback, knowledge-base grounded answers,
  * emergency detection, 50+ languages. All data survives redeploys.
@@ -76,7 +76,7 @@ function detectEmergency(text) {
 function buildSystemPrompt({ mode, languageName, kbHits, emergency }) {
   const lines = [];
   lines.push(
-    'You are Medi AI, a careful medical and health information assistant for the general public.',
+    'You are Metangy, a careful medical and health information assistant for the general public.',
     'Rules you MUST always follow:',
     '1. Give clear, practical, evidence-based general health information.',
     '2. Be honest about uncertainty. Never invent diagnoses, doses or lab values.',
@@ -370,7 +370,7 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       engines: result.engines || 1, credits, emergency, reportId,
       kbTopics: (kbHits || []).map((h) => ({
         topic: h.topic, severity: h.severity,
-        source: h.source || 'Medi AI Knowledge Base',
+        source: h.source || 'Metangy Knowledge Base',
         sourceUrl: h.source_url || null,
       })),
     });
@@ -443,7 +443,7 @@ app.post('/api/guest-chat', async (req, res) => {
 });
 
 /* ------------------- guest entry: the full app, 3 credits -------------------
-   "Continue as guest" opens the real Medi AI interface without an account.
+   "Continue as guest" opens the real Metangy interface without an account.
    The guest is a throwaway account (no email, unusable password) on the free
    plan with exactly 3 credits: the weekly refill is a week away, so 3 credits
    is the whole allowance. Every feature works — chat, 50+ languages, Report
@@ -821,7 +821,7 @@ app.get('*', (req, res) => {
       let added = 0;
       for (const e of extra) {
         if (!existing.has(String(e[0]).toLowerCase())) {
-          await db.addKB(e[0], e[1], e[2], e[3], e[4], e[5] || 'Medi AI Knowledge Base');
+          await db.addKB(e[0], e[1], e[2], e[3], e[4], e[5] || 'Metangy Knowledge Base');
           added++;
         }
       }
