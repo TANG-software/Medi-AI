@@ -1,0 +1,38 @@
+# Metangy
+
+> Metangy is a free multilingual AI health assistant. Ask a health question or photograph a lab report and get a clear, structured explanation in your own language. It runs on 10 AI models with automatic failover, grounded in a curated medical knowledge base.
+
+Metangy is built by **Medi AI** (the parent studio) and developed by **tangydust (Nirvan)**, a 14-year-old solo developer, over six months. It went live in September 2026.
+
+## What it does
+
+- **Medical chat** — ask any health question; Metangy detects your language and replies in it.
+- **Report Lens** — photograph a lab report; on-device OCR (with automatic rotation) extracts the text and Metangy explains each value against its normal range in plain words.
+- **10 AI models** — ten AI models with automatic failover, so an answer still comes if one is slow. Higher plans run more models together on each answer.
+- **Curated knowledge base** — 160+ health topics and lab-report guides, with sources such as the NHS and WHO.
+- **50+ languages** — all 22 official Indian languages plus major world languages, and Hinglish.
+- **Voice input and read-aloud** — speak your question; have answers read aloud in a natural AI voice (with a phone-voice fallback).
+- **Safety** — detects emergencies and warns immediately (112 in India); never invents unreadable values or gives dosages to self-prescribe.
+- **Saved reports and chat history**, a personal **dashboard**, **coupons**, and **report-a-problem**.
+- **Guest mode** — try the full app with 3 free credits, no account needed.
+- **Referrals** — invite 2 friends who create an account and get the Plus plan free.
+- **Installable** as a web app (PWA); a WhatsApp bot is also available.
+
+## Pricing
+
+A free plan with credits that refresh weekly. Paid plans add daily credits, more AI models per answer and ad-free use. Payments are handled by Razorpay (UPI, cards, netbanking, wallets); visitors from outside India also see an approximate price in their own currency.
+
+## Important
+
+Metangy provides general health information, not a medical diagnosis. In an emergency, call 112 (India) or your local emergency number.
+
+## Links
+
+- Home: https://medi-ai-zrn6.onrender.com/
+- About: https://medi-ai-zrn6.onrender.com/about.html
+- How it works: https://medi-ai-zrn6.onrender.com/how-it-works.html
+- FAQ: https://medi-ai-zrn6.onrender.com/faq.html
+- Health topics: https://medi-ai-zrn6.onrender.com/health-topics.html
+- Privacy: https://medi-ai-zrn6.onrender.com/privacy.html
+- Terms: https://medi-ai-zrn6.onrender.com/terms.html
+- Contact: tangydust@zohomail.in
