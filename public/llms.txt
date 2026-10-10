@@ -1,8 +1,8 @@
 # Metangy
 
-> Metangy is a free multilingual AI health assistant. Ask a health question or photograph a lab report and get a clear, structured explanation in your own language. It runs on 10 AI models with automatic failover, grounded in a curated medical knowledge base.
+> Metangy is the flagship model of **Medi AI**, a multilingual health AI. Ask a health question or photograph a lab report and get a clear, structured explanation in your own language. Metangy runs on 10 AI models with automatic failover, grounded in a curated medical knowledge base.
 
-Metangy is built by **Medi AI** (the parent studio) and developed by **tangydust (Nirvan)**, a 14-year-old solo developer, over six months. It went live in September 2026.
+**Medi AI** is a multilingual health AI, and **Metangy** is its flagship model. Metangy is developed by **tangydust (Nirvan)**, a 14-year-old solo developer, over six months, and went live in September 2026.
 
 ## What it does
 
