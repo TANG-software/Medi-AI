@@ -784,6 +784,7 @@ function renderAbout() {
       <button class="btn-gold small" id="pageCloseBtn">Back to chat</button></div>
     <div class="panel">
       <h3>Your multilingual health companion</h3>
+      <p style="opacity:.8;font-size:13px;margin:2px 0 10px"><b>Medi AI</b> &middot; models: <b>Metangy</b></p>
       <div class="md">
         <p>Metangy helps you understand health questions and medical reports in simple language, in <b>50+ languages</b> — all 22 official Indian languages included.</p>
         <p>It combines <b>10 AI models</b> with a curated medical knowledge base, automatically falls back if one model is busy, and detects emergencies. Higher plans get more models working together on every answer.</p>

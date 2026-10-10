@@ -4,6 +4,8 @@
 
 **Medi AI** is a multilingual health AI, and **Metangy** is its flagship model. Metangy is developed by **tangydust (Nirvan)**, a 14-year-old solo developer, over six months, and went live in September 2026.
 
+Models: Medi AI — Metangy.
+
 ## What it does
 
 - **Medical chat** — ask any health question; Metangy detects your language and replies in it.
