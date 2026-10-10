@@ -904,9 +904,11 @@ $('#pageView').addEventListener('submit', async (e) => {
 
 /* ---------- referrals / invite ---------- */
 let referral = null;
+let inviteLink = '';
 async function loadReferral() {
   try {
     referral = await api('/api/referral');
+    inviteLink = referral.link || '';
     const el = $('#inviteProgress');
     if (el) el.textContent = referral.rewarded
       ? 'Plus unlocked — thanks for sharing!'
@@ -914,16 +916,27 @@ async function loadReferral() {
   } catch (_) { /* not fatal */ }
 }
 function inviteMessage() {
-  const link = (referral && referral.link) || (location.origin + '/');
+  const link = inviteLink || (location.origin + '/');
   return 'I use Metangy — a free multilingual health assistant that explains symptoms and medical reports in 50+ languages. Try it free: ' + link;
 }
-async function openInvite() {
+/* Open the phone's own share sheet — the "sharing apps" popup. */
+async function nativeShare() {
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Metangy', text: inviteMessage() }); return true; }
+    catch (e) { if (e && e.name === 'AbortError') return true; }
+  }
+  return false;
+}
+/* Tapping the sidebar card: share straight away; fall back to the popup. */
+async function inviteAction() {
   if (!referral) await loadReferral();
-  const link = (referral && referral.link) || (location.origin + '/');
+  if (await nativeShare()) return;
+  openInvite();
+}
+function openInvite() {
+  const link = inviteLink || (location.origin + '/');
   const text = inviteMessage();
   const enc = encodeURIComponent;
-  $('#inviteLink').value = link;
-  $('#inviteCodeLabel').textContent = (referral && referral.code) || '—';
   $('#inviteJoined').textContent = (referral && referral.joined) || 0;
   $('#shareWhats').href = 'https://wa.me/?text=' + enc(text);
   $('#shareTg').href = 'https://t.me/share/url?url=' + enc(link) + '&text=' + enc('Try Metangy — a free multilingual health assistant:');
@@ -936,17 +949,13 @@ async function openInvite() {
   }
   $('#inviteModal').classList.remove('hidden');
 }
-if ($('#inviteBtn')) $('#inviteBtn').addEventListener('click', openInvite);
+if ($('#inviteBtn')) $('#inviteBtn').addEventListener('click', inviteAction);
 if ($('#inviteClose')) $('#inviteClose').addEventListener('click', () => $('#inviteModal').classList.add('hidden'));
+if ($('#shareNative')) $('#shareNative').addEventListener('click', async () => { if (!(await nativeShare())) toast('Sharing is not supported here — use WhatsApp or copy the link.'); });
 if ($('#shareCopy')) $('#shareCopy').addEventListener('click', async () => {
-  const link = $('#inviteLink').value;
+  const link = inviteLink || (location.origin + '/');
   try { await navigator.clipboard.writeText(link); toast('Invite link copied'); }
-  catch (_) { const i = $('#inviteLink'); i.select(); try { document.execCommand('copy'); } catch (e) {} toast('Invite link copied'); }
-});
-if ($('#shareMore')) $('#shareMore').addEventListener('click', async () => {
-  const link = $('#inviteLink').value;
-  if (navigator.share) { try { await navigator.share({ title: 'Metangy', text: inviteMessage(), url: link }); } catch (_) {} }
-  else { toast('Sharing is not supported here — copy the link instead.'); }
+  catch (_) { toast('Copy is blocked here — long-press to copy manually.'); }
 });
 
 /* ---------- sidebar nav ---------- */

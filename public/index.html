@@ -140,8 +140,6 @@
     .share-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
     .share-btn { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 11px 10px; border-radius: 10px; border: 1px solid rgba(212,175,55,.4); background: rgba(212,175,55,.08); color: #f5f2eb; text-decoration: none; font-size: 13.5px; font-weight: 600; cursor: pointer; }
     .share-btn:hover { border-color: #d4af37; background: rgba(212,175,55,.16); }
-    .share-link-row { display: flex; gap: 8px; margin-top: 6px; }
-    .share-link-row input { flex: 1; min-width: 0; }
 
     /* Short phone screens: tighten the login card so everything fits */
     @media (max-height: 760px) {
@@ -379,19 +377,16 @@
   <div id="inviteModal" class="modal hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
       <div class="modal-head"><h3><i class="bi bi-gift"></i> Invite 2 friends, get Plus free</h3><button class="icon-btn" id="inviteClose" aria-label="Close invite dialog"><i class="bi bi-x-lg"></i></button></div>
-      <p class="modal-hint" id="inviteStatus">Share your personal link. When <b>2 friends</b> create an account with it, you get <b>Plus free</b>.</p>
+      <p class="modal-hint" id="inviteStatus">Share your link. When <b>2 friends</b> create an account with it, you get <b>Plus free</b>.</p>
+      <p class="modal-hint">Friends joined: <b id="inviteJoined">0</b> / 2</p>
       <div class="share-grid" id="shareGrid">
+        <button class="share-btn" id="shareNative" type="button"><i class="bi bi-share"></i> Share to apps</button>
         <a class="share-btn" id="shareWhats" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> WhatsApp</a>
         <a class="share-btn" id="shareTg" target="_blank" rel="noopener"><i class="bi bi-telegram"></i> Telegram</a>
         <a class="share-btn" id="shareX" target="_blank" rel="noopener"><i class="bi bi-twitter-x"></i> X</a>
         <a class="share-btn" id="shareMail"><i class="bi bi-envelope"></i> Email</a>
-        <button class="share-btn" id="shareMore" type="button"><i class="bi bi-share"></i> More apps</button>
         <button class="share-btn" id="shareCopy" type="button"><i class="bi bi-clipboard"></i> Copy link</button>
       </div>
-      <div class="share-link-row">
-        <input id="inviteLink" type="text" readonly placeholder="Your invite link">
-      </div>
-      <p class="modal-hint">Your code: <b id="inviteCodeLabel">—</b> · Friends joined: <b id="inviteJoined">0</b>/2</p>
     </div>
   </div>
 
