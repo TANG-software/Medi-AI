@@ -130,6 +130,19 @@
     .guest-bar .btn-gold.small { padding: 5px 12px; font-size: 12.5px; }
     .guest-cta { width: 100%; margin-top: 8px; }
 
+    /* referral / invite */
+    .invite-card { display: flex; align-items: center; gap: 10px; width: 100%; margin: 4px 0 8px; padding: 10px 12px; background: linear-gradient(120deg, rgba(212,175,55,.18), rgba(212,175,55,.05)); border: 1px solid rgba(212,175,55,.45); border-radius: 12px; color: #f5f2eb; cursor: pointer; text-align: left; font: inherit; }
+    .invite-card:hover { border-color: #d4af37; background: linear-gradient(120deg, rgba(212,175,55,.26), rgba(212,175,55,.08)); }
+    .invite-card > i { font-size: 20px; color: #e6c96a; flex: 0 0 auto; }
+    .invite-card-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+    .invite-card-text b { font-size: 13.5px; color: #e6c96a; }
+    .invite-card-text small { font-size: 11.5px; color: #c9c4b8; }
+    .share-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+    .share-btn { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 11px 10px; border-radius: 10px; border: 1px solid rgba(212,175,55,.4); background: rgba(212,175,55,.08); color: #f5f2eb; text-decoration: none; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+    .share-btn:hover { border-color: #d4af37; background: rgba(212,175,55,.16); }
+    .share-link-row { display: flex; gap: 8px; margin-top: 6px; }
+    .share-link-row input { flex: 1; min-width: 0; }
+
     /* Short phone screens: tighten the login card so everything fits */
     @media (max-height: 760px) {
       .auth-view { padding: 14px; }
@@ -270,6 +283,11 @@
         <button class="nav-link" data-page="problem"><i class="bi bi-exclamation-triangle"></i> Report a problem</button>
       </nav>
 
+      <button class="invite-card" id="inviteBtn" type="button">
+        <i class="bi bi-gift"></i>
+        <span class="invite-card-text"><b>Invite 2 friends &rarr; Plus free</b><small id="inviteProgress">Share your link to begin</small></span>
+      </button>
+
       <div class="sidebar-search">
         <i class="bi bi-search"></i>
         <input id="chatSearch" type="search" placeholder="Search chats…">
@@ -354,6 +372,26 @@
       <p class="modal-hint">Signed in as <b id="settingsUsername">…</b></p>
       <p class="modal-hint">Your plan: <b id="settingsPlan">Free</b> · Credits left: <b id="settingsCredits">0</b> · <small id="settingsSince" style="opacity:.75;"></small></p>
       <button class="btn-gold" id="saveSettings">Save settings</button>
+    </div>
+  </div>
+
+  <!-- ============ INVITE / REFERRAL MODAL ============ -->
+  <div id="inviteModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head"><h3><i class="bi bi-gift"></i> Invite 2 friends, get Plus free</h3><button class="icon-btn" id="inviteClose" aria-label="Close invite dialog"><i class="bi bi-x-lg"></i></button></div>
+      <p class="modal-hint" id="inviteStatus">Share your personal link. When <b>2 friends</b> create an account with it, you get <b>Plus free</b>.</p>
+      <div class="share-grid" id="shareGrid">
+        <a class="share-btn" id="shareWhats" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+        <a class="share-btn" id="shareTg" target="_blank" rel="noopener"><i class="bi bi-telegram"></i> Telegram</a>
+        <a class="share-btn" id="shareX" target="_blank" rel="noopener"><i class="bi bi-twitter-x"></i> X</a>
+        <a class="share-btn" id="shareMail"><i class="bi bi-envelope"></i> Email</a>
+        <button class="share-btn" id="shareMore" type="button"><i class="bi bi-share"></i> More apps</button>
+        <button class="share-btn" id="shareCopy" type="button"><i class="bi bi-clipboard"></i> Copy link</button>
+      </div>
+      <div class="share-link-row">
+        <input id="inviteLink" type="text" readonly placeholder="Your invite link">
+      </div>
+      <p class="modal-hint">Your code: <b id="inviteCodeLabel">—</b> · Friends joined: <b id="inviteJoined">0</b>/2</p>
     </div>
   </div>
 

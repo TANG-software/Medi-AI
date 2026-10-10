@@ -8,6 +8,15 @@
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => document.querySelectorAll(s);
 
+/* Capture ?ref=CODE from a shared invite link and remember it until signup. */
+const inviteRef = (() => {
+  try {
+    const p = new URLSearchParams(location.search).get('ref');
+    if (p) { localStorage.setItem('metangy_ref', p); return p; }
+    return localStorage.getItem('metangy_ref') || '';
+  } catch (_) { return ''; }
+})();
+
 const state = {
   user: null, plans: {}, providers: [], languages: [],
   chats: [], chatId: null,
@@ -105,6 +114,7 @@ function enterApp(user) {
   $('#adminBtn').style.display = user.isAdmin ? 'flex' : 'none';
   fillSettings();
   loadChats();
+  loadReferral();
 }
 
 function updateCredits(n) {
@@ -144,8 +154,9 @@ $('#authForm').addEventListener('submit', async (e) => {
   try {
     const r = await api('/api/' + (authMode === 'login' ? 'login' : 'signup'), {
       method: 'POST',
-      body: authMode === 'login' ? { username, password } : { username, email, password },
+      body: authMode === 'login' ? { username, password } : { username, email, password, ref: inviteRef },
     });
+    if (authMode === 'signup') { try { localStorage.removeItem('metangy_ref'); } catch (_) {} }
     enterApp(r.user);
   } catch (err) {
     const el = $('#authError');
@@ -889,6 +900,53 @@ $('#pageView').addEventListener('submit', async (e) => {
       renderProblem();
     } catch (err) { toast(err.message); }
   }
+});
+
+/* ---------- referrals / invite ---------- */
+let referral = null;
+async function loadReferral() {
+  try {
+    referral = await api('/api/referral');
+    const el = $('#inviteProgress');
+    if (el) el.textContent = referral.rewarded
+      ? 'Plus unlocked — thanks for sharing!'
+      : (referral.joined + ' of ' + referral.needed + ' friends joined');
+  } catch (_) { /* not fatal */ }
+}
+function inviteMessage() {
+  const link = (referral && referral.link) || (location.origin + '/');
+  return 'I use Metangy — a free multilingual health assistant that explains symptoms and medical reports in 50+ languages. Try it free: ' + link;
+}
+async function openInvite() {
+  if (!referral) await loadReferral();
+  const link = (referral && referral.link) || (location.origin + '/');
+  const text = inviteMessage();
+  const enc = encodeURIComponent;
+  $('#inviteLink').value = link;
+  $('#inviteCodeLabel').textContent = (referral && referral.code) || '—';
+  $('#inviteJoined').textContent = (referral && referral.joined) || 0;
+  $('#shareWhats').href = 'https://wa.me/?text=' + enc(text);
+  $('#shareTg').href = 'https://t.me/share/url?url=' + enc(link) + '&text=' + enc('Try Metangy — a free multilingual health assistant:');
+  $('#shareX').href = 'https://twitter.com/intent/tweet?text=' + enc('Metangy — a free multilingual health assistant. Try it:') + '&url=' + enc(link);
+  $('#shareMail').href = 'mailto:?subject=' + enc('Try Metangy — free health assistant') + '&body=' + enc(text);
+  if (referral && referral.rewarded) {
+    $('#inviteStatus').innerHTML = 'You have unlocked <b>Plus free</b> — enjoy! Share more to spread the word.';
+  } else if (referral) {
+    $('#inviteStatus').innerHTML = 'Share your personal link. When <b>' + referral.needed + ' friends</b> create an account with it, you get <b>Plus free</b> (' + referral.reward.days + ' days).';
+  }
+  $('#inviteModal').classList.remove('hidden');
+}
+if ($('#inviteBtn')) $('#inviteBtn').addEventListener('click', openInvite);
+if ($('#inviteClose')) $('#inviteClose').addEventListener('click', () => $('#inviteModal').classList.add('hidden'));
+if ($('#shareCopy')) $('#shareCopy').addEventListener('click', async () => {
+  const link = $('#inviteLink').value;
+  try { await navigator.clipboard.writeText(link); toast('Invite link copied'); }
+  catch (_) { const i = $('#inviteLink'); i.select(); try { document.execCommand('copy'); } catch (e) {} toast('Invite link copied'); }
+});
+if ($('#shareMore')) $('#shareMore').addEventListener('click', async () => {
+  const link = $('#inviteLink').value;
+  if (navigator.share) { try { await navigator.share({ title: 'Metangy', text: inviteMessage(), url: link }); } catch (_) {} }
+  else { toast('Sharing is not supported here — copy the link instead.'); }
 });
 
 /* ---------- sidebar nav ---------- */

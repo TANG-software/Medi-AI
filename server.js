@@ -52,6 +52,11 @@ Object.assign(db.PLANS.pro,   { credits: 39,  renewDays: 1, weeks: 4 });
 Object.assign(db.PLANS.pro2,  { credits: 59,  renewDays: 1, weeks: 4 });
 Object.assign(db.PLANS.elite, { credits: 119, renewDays: 1, weeks: 48 });
 
+/* --------------------------- referrals ---------------------------- */
+/* Invite this many friends (who then create an account) -> Plus free. */
+const REFERRALS_NEEDED = 2;
+const SITE_URL = (process.env.SITE_URL || '').replace(/\/+$/, '');
+
 /* --------------------------- languages ---------------------------- */
 const LANGUAGES = [
   { code: 'en-IN', name: 'English' }, { code: 'hi-Latn-IN', name: 'Hinglish — Roman Hindi + English mix' },
@@ -144,12 +149,32 @@ async function requireAuth(req, res, next) {
   req.user = u;
   next();
 }
+/* Grant the referral reward (Plus free) once a user has invited enough friends. */
+async function maybeRewardReferrer(referrerId) {
+  if (!referrerId) return;
+  const ref = await db.getUser(referrerId);
+  if (!ref || ref.referral_reward_at) return;
+  const n = await db.countReferrals(referrerId);
+  if (n < REFERRALS_NEEDED) return;
+  const now = Math.floor(Date.now() / 1000);
+  const p = PLANS.plus;
+  const days = (p.weeks || 1) * 7;
+  const rank = { free: 0, test: 0, plus: 1, plus2: 2, pro: 3, pro2: 4, elite: 5 };
+  if ((rank[ref.plan] || 0) >= 1) {
+    /* already on a paid plan - add bonus credits instead of downgrading */
+    await db.setPlan(referrerId, ref.plan, ref.credits + p.credits);
+  } else {
+    await db.setPlan(referrerId, 'plus', p.credits, now + days * 86400, now);
+  }
+  await db.pool.query('UPDATE users SET referral_reward_at = $1 WHERE id = $2', [now, referrerId]);
+  console.log('[referral] Plus granted to user ' + referrerId + ' after ' + n + ' invites');
+}
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /* ------------------------------ auth ------------------------------ */
 app.post('/api/signup', async (req, res) => {
   try {
-    const { username, email, password } = req.body || {};
+    const { username, email, password, ref } = req.body || {};
     const uname = String(username || '').trim();
     const mail = String(email || '').trim().toLowerCase();
     const pass = String(password || '');
@@ -161,6 +186,14 @@ app.post('/api/signup', async (req, res) => {
     if (await db.emailExists(mail)) return res.status(409).json({ error: 'An account with this email already exists.' });
     const isFirst = (await db.userCount()) === 0; // first user becomes admin
     const u = await db.createUser(uname, mail, pass, isFirst);
+    /* referral attribution - the invite link carries ?ref=CODE */
+    if (ref) {
+      const referrer = await db.getUserByReferralCode(ref);
+      if (referrer && referrer.id !== u.id) {
+        await db.recordReferral(referrer.id, u.id);
+        await maybeRewardReferrer(referrer.id);
+      }
+    }
     req.session.uid = u.id;
     res.json({ ok: true, user: publicUser(u) });
   } catch (e) {
@@ -204,6 +237,27 @@ app.get('/api/me', async (req, res) => {
     engines: ai.available().length,
     languages: LANGUAGES,
   });
+});
+
+/* ---------------------------- referrals ---------------------------- */
+app.get('/api/referral', requireAuth, async (req, res) => {
+  try {
+    const code = await db.ensureReferralCode(req.user.id);
+    const joined = await db.countReferrals(req.user.id);
+    const base = SITE_URL || ('https://' + req.get('host'));
+    const p = PLANS.plus;
+    res.json({
+      code,
+      link: base + '/?ref=' + code,
+      joined,
+      needed: REFERRALS_NEEDED,
+      remaining: Math.max(0, REFERRALS_NEEDED - joined),
+      rewarded: !!req.user.referral_reward_at,
+      reward: { label: p.label, days: (p.weeks || 1) * 7, credits: p.credits },
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not load your invite link.' });
+  }
 });
 
 /* ---------------------------- settings ---------------------------- */

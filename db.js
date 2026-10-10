@@ -6,6 +6,7 @@
 'use strict';
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 /* Neon and other hosted Postgres require SSL; local test servers can opt out
    with sslmode=disable in the URL. */
@@ -264,6 +265,17 @@ async function init() {
   await pool.query(SCHEMA);
   /* migrations for older databases */
   try { await pool.query('ALTER TABLE users ADD COLUMN email TEXT'); } catch (e) {}
+  /* referral programme columns (added v2.2) */
+  try { await pool.query('ALTER TABLE users ADD COLUMN referral_code TEXT'); } catch (e) {}
+  try { await pool.query('ALTER TABLE users ADD COLUMN referred_by INTEGER'); } catch (e) {}
+  try { await pool.query('ALTER TABLE users ADD COLUMN referral_reward_at BIGINT'); } catch (e) {}
+  await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_refcode ON users (referral_code)');
+  await pool.query(`CREATE TABLE IF NOT EXISTS referrals (
+    id SERIAL PRIMARY KEY,
+    referrer_id INTEGER NOT NULL,
+    referred_id INTEGER NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`);
   /* persistent login sessions - survive restarts and redeploys */
   await pool.query(`CREATE TABLE IF NOT EXISTS session (
     sid TEXT PRIMARY KEY,
@@ -356,6 +368,44 @@ async function setPrefs(id, language, email) {
 
 async function listUsersAdmin() {
   return q('SELECT id, username, email, plan, credits, is_admin, to_char(created_at, \'YYYY-MM-DD\') AS created_at FROM users ORDER BY id DESC LIMIT 200');
+}
+
+/* ------------------------- referrals ------------------------- */
+const REF_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+function genRefCode() {
+  const b = crypto.randomBytes(10);
+  let s = '';
+  for (let i = 0; i < 8; i++) s += REF_ALPHABET[b[i] % REF_ALPHABET.length];
+  return s;
+}
+async function ensureReferralCode(userId) {
+  const u = await q1('SELECT referral_code FROM users WHERE id = $1', [userId]);
+  if (u && u.referral_code) return u.referral_code;
+  for (let i = 0; i < 6; i++) {
+    const code = genRefCode();
+    try {
+      const r = await q1('UPDATE users SET referral_code = $1 WHERE id = $2 AND referral_code IS NULL RETURNING referral_code', [code, userId]);
+      if (r && r.referral_code) return r.referral_code;
+    } catch (e) { /* code collision - try another */ }
+  }
+  return null;
+}
+async function getUserByReferralCode(code) {
+  const c = String(code || '').trim().toLowerCase();
+  if (!c) return null;
+  return q1('SELECT * FROM users WHERE referral_code = $1', [c]);
+}
+async function countReferrals(userId) {
+  const r = await q1('SELECT COUNT(*)::int AS c FROM referrals WHERE referrer_id = $1', [userId]);
+  return r ? r.c : 0;
+}
+async function recordReferral(referrerId, newUserId) {
+  if (!referrerId || referrerId === newUserId) return false;
+  try {
+    const r = await q1('INSERT INTO referrals (referrer_id, referred_id) VALUES ($1,$2) ON CONFLICT (referred_id) DO NOTHING RETURNING id', [referrerId, newUserId]);
+    await pool.query('UPDATE users SET referred_by = $1 WHERE id = $2 AND referred_by IS NULL', [referrerId, newUserId]);
+    return !!r;
+  } catch (e) { return false; }
 }
 
 /* ------------------------- plan cycle (renewals) -------------------------
@@ -531,6 +581,7 @@ module.exports = {
   pool, PLANS, init,
   userCount, userExists, emailExists, createUser, getUserByUsername, getUserByEmail, getUserByIdentifier, getUser, verifyPassword,
   deductCredits, setPlan, setPrefs, listUsersAdmin,
+  ensureReferralCode, getUserByReferralCode, countReferrals, recordReferral,
   listChats, getChat, createChat, getMessages, getRecentMessages, addMessage, touchChat, deleteChat,
   searchKB, listKB, addKB, deleteKB,
   listReports, getReport, createReport, deleteReport,
