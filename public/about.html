@@ -24,6 +24,11 @@
     a { color: var(--gold); }
     .muted { color: var(--grey); font-size: 13px; }
     .note { background: rgba(212,175,55,0.08); border: 1px solid rgba(212,175,55,0.3); border-radius: 12px; padding: 12px 14px; margin: 18px 0; font-size: 14.5px; }
+    .buildbar { margin: 16px 0 22px; }
+    .buildbar-label { font-size: 13px; color: var(--gold-soft); font-weight: 600; }
+    .buildbar-track { height: 9px; border-radius: 6px; background: rgba(212,175,55,0.18); margin: 7px 0 6px; overflow: hidden; }
+    .buildbar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #d4af37, #b8912a); }
+    .buildbar-ends { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--grey); }
     .cta { display: inline-block; margin-top: 6px; background: linear-gradient(120deg, #d4af37, #b8912a); color: #14110a; font-weight: 700; padding: 10px 18px; border-radius: 10px; text-decoration: none; }
     .card { background: rgba(212,175,55,0.06); border: 1px solid rgba(212,175,55,0.28); border-radius: 14px; padding: 14px 16px; margin: 14px 0; }
     footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid rgba(212,175,55,0.25); font-size: 13.5px; color: var(--grey); }
@@ -42,12 +47,19 @@
     <h1>About Metangy</h1>
     <p class="muted"><b>Medi AI</b> &middot; models: <b>Metangy</b> &middot; Last updated: 10 October 2026</p>
 
-    <p>Metangy is a free health assistant for anyone who has ever stared at a medical report, a prescription or a symptom and wished someone would just explain it in plain words — in the language they actually think in.</p>
-
     <div class="note">
-      <p style="margin:0 0 6px"><b>Powered by 10 AI models.</b> Ten separate AI models (engines) work together behind every answer — with automatic failover, so a reply still comes even if one is slow or unavailable.</p>
-      <p style="margin:0"><b>Built by tangydust (Nirvan)</b>, a 14-year-old solo developer, over six months. Metangy went live in September 2026.</p>
+      <p style="margin:0 0 8px"><b>Built by tangydust (Nirvan), a 14-year-old solo developer.</b></p>
+      <p style="margin:0 0 8px">Nirvan has been building Metangy for <b>six months &mdash; around 180 days</b> &mdash; working alone, from the medical knowledge base to the app itself. He used <b>several AI assistants</b> as research and coding tools while assembling the knowledge base, then checked and curated it against trusted sources such as the NHS and WHO. Metangy went live in <b>September 2026</b>.</p>
+      <p style="margin:0"><b>Powered by 10 AI models.</b> Ten AI models work together behind every answer, with automatic failover &mdash; so a reply still comes even if one is slow.</p>
     </div>
+
+    <div class="buildbar">
+      <div class="buildbar-label">6 months &middot; about 180 days of building</div>
+      <div class="buildbar-track"><div class="buildbar-fill"></div></div>
+      <div class="buildbar-ends"><span>First line of code</span><span>Live &middot; September 2026</span></div>
+    </div>
+
+    <p>Metangy is a free health assistant for anyone who has ever stared at a medical report, a prescription or a symptom and wished someone would just explain it in plain words — in the language they actually think in.</p>
 
     <h2>Why it exists</h2>
     <p>Most health information online is written for people who already understand medical English. In India, that leaves out an enormous number of people: those who read Hindi, Tamil, Telugu, Bengali or any other language more comfortably than English, and anyone who simply wants a straight answer without twenty open tabs.</p>

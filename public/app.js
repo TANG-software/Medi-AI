@@ -785,11 +785,12 @@ function renderAbout() {
     <div class="panel">
       <h3>Your multilingual health companion</h3>
       <p style="opacity:.8;font-size:13px;margin:2px 0 10px"><b>Medi AI</b> &middot; models: <b>Metangy</b></p>
+      <p style="opacity:.9;font-size:13.5px;margin:0 0 12px"><b>Built by tangydust (Nirvan)</b>, a 14-year-old solo developer, over six months (about 180 days) — using several AI assistants as research and coding tools while curating the medical knowledge base.</p>
       <div class="md">
         <p>Metangy helps you understand health questions and medical reports in simple language, in <b>50+ languages</b> — all 22 official Indian languages included.</p>
         <p>It combines <b>10 AI models</b> with a curated medical knowledge base, automatically falls back if one model is busy, and detects emergencies. Higher plans get more models working together on every answer.</p>
         <p><b>Features:</b> medical chat, Report Lens (photo → explanation), voice input, read-aloud answers, saved reports, plans & credits, coupons, dashboard, admin tools and a WhatsApp bot.</p>
-        <p><b>Who builds it:</b> Metangy is the flagship model of <b>Medi AI</b>, a multilingual health AI — built by <b>tangydust (Nirvan)</b>, a 14-year-old developer, over six months. Live since September 2026.</p>
+        <p><b>Medi AI &amp; Metangy:</b> Metangy is the flagship model of Medi AI, a multilingual health AI. Live since September 2026.</p>
         <p><b>Important:</b> Metangy provides general information, not a medical diagnosis. In an emergency, call <b>112</b> (India) or your local emergency number.</p>
         <p class="sponsor-note">Sponsored: <a class="sponsor-link" href="https://www.profitableratecpmnetwork.com/dcsirxet?key=7d7a112e8da8fcd974538848cf34cbe0" target="_blank" rel="noopener sponsored">health offers for our readers</a> — keeping Metangy free.</p>
       </div>

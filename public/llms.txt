@@ -6,6 +6,10 @@
 
 Models: Medi AI — Metangy.
 
+## Developer
+
+Metangy is built by **tangydust (Nirvan)**, a 14-year-old solo developer, over six months — about 180 days — from the medical knowledge base to the app itself. He used several AI assistants as research and coding tools while assembling the knowledge base, then checked and curated it against trusted sources such as the NHS and WHO. Metangy went live in September 2026.
+
 ## What it does
 
 - **Medical chat** — ask any health question; Metangy detects your language and replies in it.
