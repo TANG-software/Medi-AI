@@ -236,6 +236,7 @@ app.get('/api/me', async (req, res) => {
     plans: PLANS,
     engines: ai.available().length,
     languages: LANGUAGES,
+    stt: !!process.env.SARVAM_API_KEY,
   });
 });
 
@@ -352,6 +353,60 @@ app.post('/api/tts', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('[tts] ' + e.message);
     res.status(502).json({ error: 'Voice service failed: ' + e.message });
+  }
+});
+
+/* --------------------- speech-to-text (auto-detect) ------------------
+   Voice input: the browser's own speech engine cannot detect which language
+   is being spoken, so we send the recorded audio to Sarvam and let it detect
+   the language itself (language_code = unknown). */
+function postSarvamStt(audioBuf, mime) {
+  return new Promise((resolve, reject) => {
+    const boundary = '----metangy' + crypto.randomBytes(8).toString('hex');
+    const field = (name, value) => Buffer.from('--' + boundary + '\r\nContent-Disposition: form-data; name="' + name + '"\r\n\r\n' + value + '\r\n');
+    const body = Buffer.concat([
+      field('model', 'saaras:v4'),
+      field('language_code', 'unknown'),
+      field('mode', 'transcribe'),
+      Buffer.from('--' + boundary + '\r\nContent-Disposition: form-data; name="file"; filename="audio.webm"\r\nContent-Type: ' + (mime || 'audio/webm') + '\r\n\r\n'),
+      audioBuf,
+      Buffer.from('\r\n--' + boundary + '--\r\n'),
+    ]);
+    const req = https.request({
+      hostname: 'api.sarvam.ai', path: '/speech-to-text', method: 'POST',
+      headers: {
+        'api-subscription-key': process.env.SARVAM_API_KEY,
+        'Content-Type': 'multipart/form-data; boundary=' + boundary,
+        'Content-Length': body.length,
+      },
+      timeout: 60000,
+    }, (res) => {
+      let buf = ''; res.setEncoding('utf8');
+      res.on('data', (c) => { buf += c; });
+      res.on('end', () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) { reject(new Error('STT error (' + res.statusCode + '): ' + buf.slice(0, 200))); return; }
+        try { resolve(JSON.parse(buf)); } catch (e) { reject(new Error('STT returned invalid JSON')); }
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('STT request timed out')));
+    req.on('error', reject);
+    req.write(body); req.end();
+  });
+}
+
+app.post('/api/stt', requireAuth, async (req, res) => {
+  try {
+    if (!process.env.SARVAM_API_KEY) return res.status(503).json({ error: 'Voice transcription is not configured.' });
+    const { audio, mime } = req.body || {};
+    if (!audio) return res.status(400).json({ error: 'No audio received.' });
+    const buf = Buffer.from(String(audio), 'base64');
+    if (!buf.length) return res.status(400).json({ error: 'Empty audio.' });
+    if (buf.length > 6 * 1024 * 1024) return res.status(413).json({ error: 'Recording is too long — keep it under about 30 seconds.' });
+    const json = await postSarvamStt(buf, mime);
+    res.json({ text: String(json.transcript || '').trim(), language: json.language_code || null, probability: json.language_probability || null });
+  } catch (e) {
+    console.error('[stt] ' + e.message);
+    res.status(502).json({ error: 'Could not transcribe the audio. Please try again.' });
   }
 });
 

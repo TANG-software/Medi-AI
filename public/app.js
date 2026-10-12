@@ -88,6 +88,7 @@ async function boot() {
     state.plans = me.plans || {};
     state.providers = me.providers || [];
     state.languages = me.languages || [];
+    state.stt = !!me.stt;   /* server-side auto-detect speech-to-text available */
     if (me.user) enterApp(me.user);
     else showAuth();
   } catch (e) {
@@ -120,6 +121,11 @@ function enterApp(user) {
   try { voiceLang = localStorage.getItem('metangy_voice_lang') || ''; } catch (_) {}
   if (!voiceLang) voiceLang = user.language || 'en-IN';
   setVoiceLang(voiceLang, true);
+  /* With server-side STT the mic auto-detects the language, so the manual
+     language chip is not needed — hide it. */
+  sttAvailable = !!state.stt && !!(navigator.mediaDevices && window.MediaRecorder);
+  const langChip = $('#voiceLangBtn');
+  if (langChip) langChip.style.display = sttAvailable ? 'none' : '';
 }
 
 function updateCredits(n) {
@@ -461,6 +467,7 @@ document.addEventListener('click', (e) => {
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null, recording = false;
 let voiceLang = '';   /* the language the user is about to SPEAK (not the reply language) */
+let sttAvailable = false;   /* true when the server can auto-detect the spoken language */
 if (SR) {
   rec = new SR();
   rec.continuous = false;
@@ -479,7 +486,9 @@ if (SR) {
 
 function voiceLangName(l) { return l.name.includes('\u2014') ? l.name.split('\u2014').pop().trim() : l.name; }
 function voiceLangLabel(code) {
-  const l = (state.languages || []).find((x) => x.code === code);
+  const alias = { 'od-IN': 'or-IN' };   /* Sarvam returns od-IN for Odia */
+  const c = alias[code] || code;
+  const l = (state.languages || []).find((x) => x.code === c);
   return l ? voiceLangName(l) : code;
 }
 function setVoiceLang(code, quiet) {
@@ -505,6 +514,56 @@ function buildVoiceMenu() {
     startVoice();
   }));
 }
+/* Server-side auto-detect speech-to-text: record, upload, let the server
+   detect the language. Falls back to the browser engine if unavailable. */
+let mediaRec = null, micStream = null, micChunks = [], micTimer = null;
+function stopMicStream() {
+  if (micStream) { micStream.getTracks().forEach((t) => t.stop()); micStream = null; }
+  if (micTimer) { clearTimeout(micTimer); micTimer = null; }
+}
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result).split(',')[1] || '');
+    fr.onerror = reject;
+    fr.readAsDataURL(blob);
+  });
+}
+async function startAutoVoice() {
+  if (!navigator.mediaDevices || !window.MediaRecorder) return startVoice();
+  if (!micStream) {
+    try { micStream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (_) { toast('Microphone permission is needed.'); return; }
+  }
+  micChunks = [];
+  try {
+    const type = window.MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+    mediaRec = type ? new MediaRecorder(micStream, { mimeType: type }) : new MediaRecorder(micStream);
+  } catch (_) { return startVoice(); }
+  mediaRec.ondataavailable = (e) => { if (e.data && e.data.size) micChunks.push(e.data); };
+  mediaRec.onstop = async () => {
+    const blob = new Blob(micChunks, { type: (mediaRec && mediaRec.mimeType) || 'audio/webm' });
+    stopMicStream();
+    recording = false; $('#micBtn').classList.remove('recording');
+    if (blob.size < 1500) return;
+    toast('Transcribing…', 6000);
+    try {
+      const b64 = await blobToBase64(blob);
+      const r = await api('/api/stt', { method: 'POST', body: { audio: b64, mime: blob.type } });
+      const t = String(r.text || '').trim();
+      if (!t) { toast('Could not hear anything — please try again.'); return; }
+      $('#input').value = ($('#input').value + ' ' + t).trim();
+      autosize();
+      if (r.language) toast('Heard in ' + voiceLangLabel(r.language));
+    } catch (e) {
+      toast(e.message || 'Could not transcribe — please try again.');
+    }
+  };
+  mediaRec.start();
+  recording = true; $('#micBtn').classList.add('recording');
+  toast('Listening… tap the mic again to stop.', 6000);
+  micTimer = setTimeout(() => { if (recording && mediaRec) { try { mediaRec.stop(); } catch (_) {} } }, 20000);
+}
 function startVoice() {
   if (!rec) return toast('Voice input is not supported in this browser.');
   if (recording) { rec.stop(); return; }
@@ -512,7 +571,15 @@ function startVoice() {
   try { rec.start(); recording = true; $('#micBtn').classList.add('recording'); }
   catch (_) { toast('Could not start the microphone.'); }
 }
-$('#micBtn').addEventListener('click', startVoice);
+$('#micBtn').addEventListener('click', () => {
+  if (recording) {
+    if (mediaRec && mediaRec.state !== 'inactive') { try { mediaRec.stop(); } catch (_) {} }
+    else if (rec) { try { rec.stop(); } catch (_) {} }
+    return;
+  }
+  if (sttAvailable) startAutoVoice();
+  else startVoice();
+});
 if ($('#voiceLangBtn')) $('#voiceLangBtn').addEventListener('click', (e) => {
   e.stopPropagation();
   buildVoiceMenu();
