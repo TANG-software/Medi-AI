@@ -180,6 +180,10 @@
     .share-btn { display: flex; align-items: center; justify-content: center; gap: 7px; padding: 11px 10px; border-radius: 10px; border: 1px solid rgba(212,175,55,.4); background: rgba(212,175,55,.08); color: #f5f2eb; text-decoration: none; font-size: 13.5px; font-weight: 600; cursor: pointer; }
     .share-btn:hover { border-color: #d4af37; background: rgba(212,175,55,.16); }
 
+    /* voice input language chip */
+    .icon-btn.lang-chip { width: auto; min-width: 38px; padding: 0 7px; font-size: 11.5px; font-weight: 700; letter-spacing: .3px; color: #d4af37; }
+    #voiceMenu { max-height: 60vh; overflow-y: auto; }
+
     /* Short phone screens: tighten the login card so everything fits */
     @media (max-height: 760px) {
       .auth-view { padding: 14px; }
@@ -381,12 +385,16 @@
           <button class="mode-option disabled" disabled><i class="bi bi-person-video3"></i><div><b>Body Scanner</b><small>Coming soon</small></div></button>
         </div>
 
+        <!-- Voice input language picker -->
+        <div id="voiceMenu" class="mode-menu hidden"></div>
+
         <div class="composer">
           <button class="icon-btn" id="modeBtn" title="Select mode" aria-label="Select chat mode"><i class="bi bi-sliders"></i></button>
           <button class="icon-btn" id="attachBtn" title="Add image / photo (Report Lens)" aria-label="Upload a report image"><i class="bi bi-plus-square"></i></button>
           <input type="file" id="fileInput" accept="image/*" hidden>
           <textarea id="input" rows="1" placeholder="Ask Metangy anything…" maxlength="8000" aria-label="Type your health question"></textarea>
           <button class="icon-btn" id="cameraBtn" title="Scan a report with camera" aria-label="Scan a medical report with your camera"><i class="bi bi-camera-fill"></i></button>
+          <button class="icon-btn lang-chip" id="voiceLangBtn" title="Language you will speak" aria-label="Choose the language you will speak">EN</button>
           <button class="icon-btn" id="micBtn" title="Voice input" aria-label="Voice input"><i class="bi bi-mic"></i></button>
           <button class="icon-btn send" id="sendBtn" title="Send" aria-label="Send message"><i class="bi bi-arrow-up-circle-fill"></i></button>
         </div>

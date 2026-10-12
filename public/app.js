@@ -115,6 +115,11 @@ function enterApp(user) {
   fillSettings();
   loadChats();
   loadReferral();
+  /* Voice input: default the spoken language to the account language, but the
+     user can change it any time — the mic used to be locked to this language. */
+  try { voiceLang = localStorage.getItem('metangy_voice_lang') || ''; } catch (_) {}
+  if (!voiceLang) voiceLang = user.language || 'en-IN';
+  setVoiceLang(voiceLang, true);
 }
 
 function updateCredits(n) {
@@ -455,6 +460,7 @@ document.addEventListener('click', (e) => {
 /* ------------------------------ voice input ------------------------------ */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null, recording = false;
+let voiceLang = '';   /* the language the user is about to SPEAK (not the reply language) */
 if (SR) {
   rec = new SR();
   rec.continuous = false;
@@ -466,13 +472,54 @@ if (SR) {
   };
   rec.onend = () => { recording = false; $('#micBtn').classList.remove('recording'); };
   rec.onerror = () => { recording = false; $('#micBtn').classList.remove('recording'); };
+} else {
+  const vb = $('#voiceLangBtn');
+  if (vb) vb.style.display = 'none';
 }
-$('#micBtn').addEventListener('click', () => {
+
+function voiceLangName(l) { return l.name.includes('\u2014') ? l.name.split('\u2014').pop().trim() : l.name; }
+function voiceLangLabel(code) {
+  const l = (state.languages || []).find((x) => x.code === code);
+  return l ? voiceLangName(l) : code;
+}
+function setVoiceLang(code, quiet) {
+  voiceLang = code || voiceLang || 'en-IN';
+  try { localStorage.setItem('metangy_voice_lang', voiceLang); } catch (_) {}
+  const btn = $('#voiceLangBtn');
+  if (btn) btn.textContent = String(voiceLang).split('-')[0].toUpperCase();
+  if (!quiet) toast('Voice input language: ' + voiceLangLabel(voiceLang));
+}
+function buildVoiceMenu() {
+  const menu = $('#voiceMenu');
+  if (!menu) return;
+  const list = state.languages || [];
+  let html = '<div class="mode-option disabled" style="cursor:default"><i class="bi bi-translate"></i><div><b>Which language will you speak?</b><small>Voice input listens in that language</small></div></div>';
+  html += list.map((l) =>
+    '<button class="mode-option' + (l.code === voiceLang ? ' active' : '') + '" data-vlang="' + esc(l.code) + '">' +
+    '<i class="bi bi-mic"></i><div><b>' + esc(voiceLangName(l)) + '</b><small>' + esc(l.code) + '</small></div></button>'
+  ).join('');
+  menu.innerHTML = html;
+  $$('#voiceMenu [data-vlang]').forEach((b) => b.addEventListener('click', () => {
+    setVoiceLang(b.dataset.vlang);
+    menu.classList.add('hidden');
+    startVoice();
+  }));
+}
+function startVoice() {
   if (!rec) return toast('Voice input is not supported in this browser.');
   if (recording) { rec.stop(); return; }
-  rec.lang = state.user.language || 'en-IN';
+  rec.lang = voiceLang || state.user.language || 'en-IN';
   try { rec.start(); recording = true; $('#micBtn').classList.add('recording'); }
-  catch (_) {}
+  catch (_) { toast('Could not start the microphone.'); }
+}
+$('#micBtn').addEventListener('click', startVoice);
+if ($('#voiceLangBtn')) $('#voiceLangBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  buildVoiceMenu();
+  $('#voiceMenu').classList.toggle('hidden');
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#voiceMenu') && !e.target.closest('#voiceLangBtn')) $('#voiceMenu').classList.add('hidden');
 });
 
 /* ------------------------------ Report Lens (OCR) ------------------------------ */
