@@ -89,6 +89,7 @@ async function boot() {
     state.providers = me.providers || [];
     state.languages = me.languages || [];
     state.stt = !!me.stt;   /* server-side auto-detect speech-to-text available */
+    state.refill = me.refill || null;
     if (me.user) enterApp(me.user);
     else showAuth();
   } catch (e) {
@@ -695,6 +696,16 @@ function fillSettings() {
   $('#settingsUsername').textContent = state.user.username;
   $('#settingsEmail').value = state.user.email || '';
   $('#settingsSince').textContent = state.user.memberSince ? ('member since ' + state.user.memberSince) : '';
+  const rfEl = $('#settingsRefill');
+  if (rfEl) {
+    const rf = state.refill;
+    if (rf && rf.days) {
+      const when = rf.nextAt ? new Date(rf.nextAt * 1000).toLocaleDateString() : '';
+      rfEl.textContent = 'Credits refill to ' + rf.credits + ' every ' + rf.days + ' day' + (rf.days > 1 ? 's' : '') + (when ? ' — next on ' + when : '');
+    } else {
+      rfEl.textContent = '';
+    }
+  }
 }
 $('#settingsBtn').addEventListener('click', () => $('#settingsModal').classList.remove('hidden'));
 $('#settingsClose').addEventListener('click', () => $('#settingsModal').classList.add('hidden'));

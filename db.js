@@ -276,6 +276,9 @@ async function init() {
     referred_id INTEGER NOT NULL UNIQUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`);
+  /* Backfill the credit-refill clock for accounts created before it existed.
+     Without this their last_refill stayed NULL and credits never topped up. */
+  try { await pool.query("UPDATE users SET last_refill = EXTRACT(EPOCH FROM COALESCE(created_at, now()))::bigint WHERE last_refill IS NULL"); } catch (e) {}
   /* persistent login sessions - survive restarts and redeploys */
   await pool.query(`CREATE TABLE IF NOT EXISTS session (
     sid TEXT PRIMARY KEY,
@@ -415,9 +418,17 @@ async function applyPlanCycle(u) {
   if (!u) return u;
   const now = Math.floor(Date.now() / 1000);
   let plan = u.plan, credits = u.credits;
-  let last = u.last_refill || now;
-  let expires = u.plan_expires || 0;
+  let last = Number(u.last_refill) || 0;
+  let expires = Number(u.plan_expires) || 0;
   let dirty = false;
+  /* A missing refill clock used to reset itself to "now" on every request, so
+     the timer never reached the refill period and credits never topped up.
+     Anchor it to the signup time (or now) and persist it. */
+  if (!last) {
+    last = u.created_at ? Math.floor(new Date(u.created_at).getTime() / 1000) : now;
+    if (!last || last > now) last = now;
+    dirty = true;
+  }
   if (expires && now > expires) {
     plan = 'free'; expires = 0; last = now; dirty = true;
   }

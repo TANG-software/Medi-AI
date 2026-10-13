@@ -139,6 +139,15 @@ function publicUser(u) {
     memberSince: u.created_at ? String(u.created_at).slice(0, 10) : undefined,
   };
 }
+/* When this user's credits next refill (and to how many). */
+function refillInfo(u) {
+  const p = PLANS[u.plan] || PLANS.free;
+  const days = p.renewDays || 0;
+  const now = Math.floor(Date.now() / 1000);
+  const last = Number(u.last_refill) || now;
+  const nextAt = days ? last + days * 86400 : 0;
+  return { days, credits: p.credits, nextAt: nextAt > now ? nextAt : now };
+}
 async function currentUser(req) {
   if (!req.session || !req.session.uid) return null;
   return db.getUser(req.session.uid);
@@ -237,6 +246,7 @@ app.get('/api/me', async (req, res) => {
     engines: ai.available().length,
     languages: LANGUAGES,
     stt: !!process.env.SARVAM_API_KEY,
+    refill: u ? refillInfo(u) : null,
   });
 });
 
