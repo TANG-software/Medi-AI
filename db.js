@@ -23,11 +23,11 @@ async function q1(text, params) { const r = await pool.query(text, params || [])
 
 /* ------------------------------ plans ------------------------------
    NOTE: server.js applies the v2.1 daily-credit overrides on top of these
-   defaults at startup (free 9/week · plus 19/day ×7 · plus+ 25/day ×28 ·
+   defaults at startup (free 9/36h · plus 19/day ×7 · plus+ 25/day ×28 ·
    pro 39/day ×28 · pro+ 59/day ×28 · elite 119/day ×336). Prices & engines
    per answer: free 2 · plus 3 · plus+ 4 · pro tiers all available. */
 const PLANS = {
-  free:  { label: 'Free',    credits: 5,   priceInr: 0,    engines: 2,  renewDays: 14 },
+  free:  { label: 'Free',    credits: 9,   priceInr: 0,    engines: 2,  renewDays: 1.5 },
   plus:  { label: 'Plus',    credits: 15,  priceInr: 49,   engines: 3,  bonus: '10 + 5 bonus credits' },
   plus2: { label: 'Plus+',   credits: 32,  priceInr: 99,   engines: 4,  bonus: '20 + 12 bonus credits' },
   pro:   { label: 'Pro',     credits: 30,  priceInr: 799,  engines: 10, renewDays: 7, weeks: 4 },
@@ -413,9 +413,12 @@ async function recordReferral(referrerId, newUserId) {
 
 /* ------------------------- plan cycle (renewals) -------------------------
    Called on every getUser: expires finished subscriptions and tops up
-   credits on schedule (weekly for paid Pro tiers, fortnightly for Free). */
+   credits on schedule (daily for paid tiers, every 36 hours for Free). */
 async function applyPlanCycle(u) {
   if (!u) return u;
+  /* Guest accounts are capped at their 3 starter credits and swept after a
+     few days - never top them up on the plan cycle. */
+  if (/^guest_[0-9a-f]{8}$/i.test(String(u.username || ''))) return u;
   const now = Math.floor(Date.now() / 1000);
   let plan = u.plan, credits = u.credits;
   let last = Number(u.last_refill) || 0;

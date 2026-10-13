@@ -519,7 +519,7 @@
       renderPricing = async function () {
         await _origRenderPricing.apply(this, arguments);
         var fixes = {
-          'Free': '9 credits every week',
+          'Free': '9 credits every 36 hours',
           'Plus': '19 credits daily for 7 days',
           'Plus+': '25 credits daily for 28 days',
           'Pro': '39 credits daily for 28 days',
@@ -531,7 +531,7 @@
           if (h && li && fixes[h.textContent.trim()]) li.textContent = fixes[h.textContent.trim()];
         });
         var cm = document.getElementById('couponMsg');
-        if (cm) cm.textContent = 'Credit coupons add credits instantly; discount coupons apply at checkout. Free plan credits refresh weekly; paid plan credits refresh daily. Pay with UPI, cards, netbanking or wallets via Razorpay.';
+        if (cm) cm.textContent = 'Credit coupons add credits instantly; discount coupons apply at checkout. Free plan credits refresh every 36 hours; paid plan credits refresh daily. Pay with UPI, cards, netbanking or wallets via Razorpay.';
         /* Payments & refunds note — plain-language billing info on the pricing
            page (this is also what payment providers look for when reviewing a
            site, and it helps buyers abroad know how they will be charged). */

@@ -69,6 +69,17 @@ function toast(msg, ms = 3200) {
   t._h = setTimeout(() => t.classList.add('hidden'), ms);
 }
 
+/* Human label for a refill cycle — 1.5 days reads as "every 36 hours". */
+function planCycleLabel(days) {
+  if (!days) return '';
+  if (Number.isInteger(days)) {
+    if (days === 1) return 'every day';
+    if (days === 7) return 'every week';
+    return 'every ' + days + ' days';
+  }
+  return 'every ' + Math.round(days * 24) + ' hours';
+}
+
 async function api(path, opts = {}) {
   const res = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },
@@ -701,7 +712,7 @@ function fillSettings() {
     const rf = state.refill;
     if (rf && rf.days) {
       const when = rf.nextAt ? new Date(rf.nextAt * 1000).toLocaleDateString() : '';
-      rfEl.textContent = 'Credits refill to ' + rf.credits + ' every ' + rf.days + ' day' + (rf.days > 1 ? 's' : '') + (when ? ' — next on ' + when : '');
+      rfEl.textContent = 'Credits refill to ' + rf.credits + ' ' + planCycleLabel(rf.days) + (when ? ' — next on ' + when : '');
     } else {
       rfEl.textContent = '';
     }
@@ -870,7 +881,7 @@ async function renderPricing() {
   const current = (me.user || {}).plan;
   const featureLine = (id, p) => {
     const renew = p.renewDays
-      ? `${p.credits} credits ${p.renewDays === 7 ? 'every week' : 'every 2 weeks'}${p.weeks ? (p.weeks >= 52 ? ' for 1 year' : ' for ' + p.weeks + ' weeks') : ''}`
+      ? `${p.credits} credits ${planCycleLabel(p.renewDays)}${p.weeks ? (p.weeks >= 52 ? ' for 1 year' : ' for ' + p.weeks + ' weeks') : ''}`
       : (p.bonus || p.credits + ' credits');
     const engines = p.engines >= 10
       ? 'All AI engines work together'
@@ -899,7 +910,7 @@ async function renderPricing() {
         <input id="couponInput" type="text" placeholder="Enter coupon code" autocomplete="off">
         <button class="btn-gold small" id="couponBtn">Redeem</button>
       </div>
-      <p class="modal-hint" id="couponMsg">Credit coupons add credits instantly; discount coupons apply at checkout. One-time packs never expire — subscription credits refresh weekly. Pay with UPI, cards, netbanking or wallets via Razorpay.</p>
+      <p class="modal-hint" id="couponMsg">Credit coupons add credits instantly; discount coupons apply at checkout. One-time packs never expire — subscription credits refresh automatically on your plan's cycle. Pay with UPI, cards, netbanking or wallets via Razorpay.</p>
     </div>`;
 }
 

@@ -43,9 +43,9 @@ app.use(session(sessionConfig));
 /* ------------------------------ plans ------------------------------ */
 const PLANS = db.PLANS;
 /* v2.1 plan tuning — daily-credit plans (prices & engines unchanged):
-   Free 9/week · Plus 19/day ×7 days · Plus+ 25/day ×28 · Pro 39/day ×28 ·
+   Free 9/36h · Plus 19/day ×7 days · Plus+ 25/day ×28 · Pro 39/day ×28 ·
    Pro+ 59/day ×28 · Elite 119/day ×336 (28×12) days. */
-Object.assign(db.PLANS.free,  { credits: 9,   renewDays: 7 });
+Object.assign(db.PLANS.free,  { credits: 9,   renewDays: 1.5 });  /* 36 hours */
 Object.assign(db.PLANS.plus,  { credits: 19,  renewDays: 1, weeks: 1 });
 Object.assign(db.PLANS.plus2, { credits: 25,  renewDays: 1, weeks: 4 });
 Object.assign(db.PLANS.pro,   { credits: 39,  renewDays: 1, weeks: 4 });
@@ -564,7 +564,7 @@ app.post('/api/guest-chat', async (req, res) => {
 /* ------------------- guest entry: the full app, 3 credits -------------------
    "Continue as guest" opens the real Metangy interface without an account.
    The guest is a throwaway account (no email, unusable password) on the free
-   plan with exactly 3 credits: the weekly refill is a week away, so 3 credits
+   plan with exactly 3 credits: guests are never topped up on the refill cycle, so 3 credits
    is the whole allowance. Every feature works — chat, 50+ languages, Report
    Lens (2 credits) — and when the credits run out the app's normal credit
    check stops further questions and the UI invites the visitor to sign up. */
