@@ -818,6 +818,7 @@ function closePage() {
 }
 
 async function openPage(name) {
+  if (name === 'home') { location.href = '/'; return; }   /* back to the landing page */
   const pv = $('#pageView');
   closePage();
   pv.classList.remove('hidden');
