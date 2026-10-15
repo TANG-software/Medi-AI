@@ -1,7 +1,7 @@
 /* Metangy — service worker: app shell cache, API always network-first. */
 'use strict';
-const CACHE = 'metangy-v11';
-const SHELL = ['/', '/style.css', '/app.js', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
+const CACHE = 'metangy-v12';
+const SHELL = ['/', '/app', '/style.css', '/app.js', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -27,6 +27,6 @@ self.addEventListener('fetch', (e) => {
         }
         return res;
       })
-      .catch(() => caches.match(e.request).then((m) => m || caches.match('/')))
+      .catch(() => caches.match(e.request).then((m) => m || caches.match('/app') || caches.match('/')))
   );
 });

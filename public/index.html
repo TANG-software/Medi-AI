@@ -143,7 +143,7 @@
     #upsellModal .modal-head { justify-content: space-between; }
 
     /* Guest mode — try Metangy without an account, on the login screen */
-    .guest-card { width: 100%; max-width: 420px; margin: 14px auto 0; background: rgba(10, 10, 14, 0.92); border: 1px solid rgba(212, 175, 55, 0.4); border-radius: 16px; padding: 14px; }
+    .guest-card { display: none !important; }   /* guest entry moved to the landing page */
     .guest-head { font-size: 14px; font-weight: 600; color: #e6c96a; margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
     .guest-log { max-height: 240px; overflow-y: auto; font-size: 13.5px; }
     .guest-q { color: #f5f2eb; font-weight: 600; margin: 8px 0 4px; }
@@ -357,6 +357,7 @@
         <div class="topbar-right">
           <button type="button" class="mode-badge" id="modeBadge" title="Change mode — chat or Report Lens"><i class="bi bi-chat-heart"></i> Chat</button>
           <button type="button" class="icon-btn" id="topCameraBtn" title="Scan a report with camera" aria-label="Scan a medical report with your camera"><i class="bi bi-camera-fill"></i></button>
+          <button type="button" class="btn-gold small" id="saveAccountBtn" style="display:none" title="Save your account so you can log in from any device">Save account</button>
           <span class="credit-pill top-credits"><i class="bi bi-lightning-charge"></i> <b id="creditCountTop">0</b></span>
         </div>
       </header>
@@ -418,6 +419,23 @@
       <p class="modal-hint">Your plan: <b id="settingsPlan">Free</b> · Credits left: <b id="settingsCredits">0</b> · <small id="settingsSince" style="opacity:.75;"></small></p>
       <p class="modal-hint" id="settingsRefill"></p>
       <button class="btn-gold" id="saveSettings">Save settings</button>
+    </div>
+  </div>
+
+  <!-- ============ SAVE ACCOUNT (guest → real account) ============ -->
+  <div id="upgradeModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head"><h3><i class="bi bi-person-check"></i> Save your account</h3><button class="icon-btn" id="upgradeClose" aria-label="Close"><i class="bi bi-x-lg"></i></button></div>
+      <p class="modal-hint">You're using Metangy as a guest. Add a username, email and password to keep every chat and report you've made — and log in from any device.</p>
+      <div id="upgradeError" class="auth-error hidden"></div>
+      <label>Username</label>
+      <input id="upUsername" type="text" placeholder="e.g. rahul2001" autocomplete="username">
+      <label>Email</label>
+      <input id="upEmail" type="email" placeholder="you@example.com" autocomplete="email">
+      <label>Password</label>
+      <input id="upPassword" type="password" placeholder="At least 6 characters" autocomplete="new-password">
+      <button class="btn-gold" id="upgradeSubmit">Save my account</button>
+      <p class="modal-hint">Already have an account? <a href="/app?login=1" id="upgradeToLogin">Log in instead</a></p>
     </div>
   </div>
 

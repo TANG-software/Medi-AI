@@ -561,14 +561,14 @@ app.post('/api/guest-chat', async (req, res) => {
   }
 });
 
-/* ------------------- guest entry: the full app, 3 credits -------------------
-   "Continue as guest" opens the real Metangy interface without an account.
-   The guest is a throwaway account (no email, unusable password) on the free
-   plan with exactly 3 credits: guests are never topped up on the refill cycle, so 3 credits
-   is the whole allowance. Every feature works — chat, 50+ languages, Report
-   Lens (2 credits) — and when the credits run out the app's normal credit
-   check stops further questions and the UI invites the visitor to sign up. */
-const GUEST_LOGIN_PER_IP = 3;   /* new guest sessions per IP per day */
+/* ----------------- guest entry: the full app, 9 credits/day -----------------
+   "Try Metangy" on the landing page opens the real interface with no account.
+   The guest is a throwaway account (no email, unusable password) that gets
+   <b>9 credits a day</b> — refilled on a daily cycle (see applyPlanCycle).
+   Every feature works — chat, 50+ languages, Report Lens (2 credits) — and
+   when the credits run out the UI invites the visitor to save the account
+   (username + email + password on the SAME account, so nothing is lost). */
+const GUEST_LOGIN_PER_IP = 25;   /* new guest sessions per IP per day */
 const guestLogins = new Map();
 
 function guestLoginAllowed(ip) {
@@ -608,13 +608,40 @@ app.post('/api/guest-login', async (req, res) => {
     const crypto = require('crypto');
     const username = 'guest_' + crypto.randomBytes(4).toString('hex');
     const u = await db.createUser(username, null, crypto.randomBytes(12).toString('hex'), false);
-    await db.pool.query('UPDATE users SET credits = 3 WHERE id = $1', [u.id]);
+    await db.pool.query('UPDATE users SET credits = 9 WHERE id = $1', [u.id]);
     const fresh = await db.getUser(u.id);
     req.session.uid = fresh.id;
     res.json({ ok: true, user: publicUser(fresh), guest: true });
   } catch (e) {
     console.error('[guest-login] ' + e.message);
     res.status(500).json({ error: 'Could not start guest mode. Please try again.' });
+  }
+});
+
+/* Save the current guest account: sets a username, email and password on the
+   SAME row, so the visitor keeps every chat and report and can log in from
+   any device afterwards. */
+app.post('/api/guest-upgrade', requireAuth, async (req, res) => {
+  try {
+    const u = req.user;
+    if (String(u.username || '').indexOf('guest_') !== 0) {
+      return res.status(400).json({ error: 'This is already a full account.' });
+    }
+    const { username, email, password } = req.body || {};
+    const uname = String(username || '').trim();
+    const mail = String(email || '').trim().toLowerCase();
+    const pass = String(password || '');
+    if (uname.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters.' });
+    if (!/^[a-zA-Z0-9_.-]+$/.test(uname)) return res.status(400).json({ error: 'Username can only have letters, numbers, dot, dash, underscore.' });
+    if (!EMAIL_RE.test(mail)) return res.status(400).json({ error: 'Please enter a valid email address.' });
+    if (pass.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+    if (await db.userExists(uname)) return res.status(409).json({ error: 'That username is already taken.' });
+    if (await db.emailExists(mail)) return res.status(409).json({ error: 'An account with this email already exists.' });
+    const updated = await db.upgradeGuest(u.id, uname, mail, pass);
+    res.json({ ok: true, user: publicUser(updated) });
+  } catch (e) {
+    console.error('[guest-upgrade] ' + e.message);
+    res.status(500).json({ error: 'Could not save your account. Please try again.' });
   }
 });
 
@@ -911,7 +938,10 @@ app.post('/whatsapp/webhook', express.json(), async (req, res) => {
 });
 
 /* ------------------------------ static ----------------------------- */
-app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html' }));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+/* The public landing page is the root; the app itself lives at /app. */
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'landing.html')));
+app.get('/app', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'Not found.' });
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

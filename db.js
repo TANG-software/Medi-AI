@@ -358,6 +358,15 @@ async function setPlan(id, plan, credits, expiresAt, lastRefill) {
   return q1('SELECT * FROM users WHERE id = $1', [id]);
 }
 
+/* Turn a guest account into a real one, keeping the same row (so chats and
+   reports carry over) and setting a username, email and password on it. */
+async function upgradeGuest(id, username, email, password) {
+  const hash = bcrypt.hashSync(String(password), 10);
+  await pool.query('UPDATE users SET username = $1, email = $2, passhash = $3 WHERE id = $4',
+    [String(username).trim(), email ? String(email).trim().toLowerCase() : null, hash, id]);
+  return q1('SELECT * FROM users WHERE id = $1', [id]);
+}
+
 async function setPrefs(id, language, email) {
   /* email === undefined → keep the current email (language-only update).
      null → clear it, string → set it. */
@@ -416,9 +425,9 @@ async function recordReferral(referrerId, newUserId) {
    credits on schedule (daily for paid tiers, every 36 hours for Free). */
 async function applyPlanCycle(u) {
   if (!u) return u;
-  /* Guest accounts are capped at their 3 starter credits and swept after a
-     few days - never top them up on the plan cycle. */
-  if (/^guest_[0-9a-f]{8}$/i.test(String(u.username || ''))) return u;
+  /* Guests are on a daily cycle: 9 credits a day, then the UI invites them
+     to save the account. */
+  const isGuest = /^guest_[0-9a-f]{8}$/i.test(String(u.username || ''));
   const now = Math.floor(Date.now() / 1000);
   let plan = u.plan, credits = u.credits;
   let last = Number(u.last_refill) || 0;
@@ -436,12 +445,14 @@ async function applyPlanCycle(u) {
     plan = 'free'; expires = 0; last = now; dirty = true;
   }
   const p = PLANS[plan] || PLANS.free;
-  if (p.renewDays) {
-    const period = p.renewDays * 86400;
+  const renewDays = isGuest ? 1 : p.renewDays;   /* guests: 9 credits a day */
+  const cap = isGuest ? 9 : p.credits;
+  if (renewDays) {
+    const period = renewDays * 86400;
     if (now - last >= period) {
       const cycles = Math.floor((now - last) / period);
       last += cycles * period;
-      if (credits < p.credits) credits = p.credits;
+      if (credits < cap) credits = cap;
       dirty = true;
     }
   }
@@ -594,7 +605,7 @@ async function deleteKB(id) {
 module.exports = {
   pool, PLANS, init,
   userCount, userExists, emailExists, createUser, getUserByUsername, getUserByEmail, getUserByIdentifier, getUser, verifyPassword,
-  deductCredits, setPlan, setPrefs, listUsersAdmin,
+  deductCredits, setPlan, setPrefs, listUsersAdmin, upgradeGuest,
   ensureReferralCode, getUserByReferralCode, countReferrals, recordReferral,
   listChats, getChat, createChat, getMessages, getRecentMessages, addMessage, touchChat, deleteChat,
   searchKB, listKB, addKB, deleteKB,

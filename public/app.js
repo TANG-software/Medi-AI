@@ -102,7 +102,8 @@ async function boot() {
     state.stt = !!me.stt;   /* server-side auto-detect speech-to-text available */
     state.refill = me.refill || null;
     if (me.user) enterApp(me.user);
-    else showAuth();
+    else if (/[?&]login/.test(location.search)) showAuth();
+    else await startGuest();
   } catch (e) {
     showAuth();
   }
@@ -112,6 +113,17 @@ async function boot() {
 function showAuth() {
   $('#appView').classList.add('hidden');
   $('#authView').classList.remove('hidden');
+}
+
+/* No account yet? Drop straight into the app as a guest — 9 credits a day,
+   no sign-up. The guest can save the account at any time. */
+async function startGuest() {
+  try {
+    const r = await api('/api/guest-login', { method: 'POST' });
+    enterApp(r.user);
+  } catch (e) {
+    showAuth();
+  }
 }
 
 function enterApp(user) {
@@ -138,6 +150,9 @@ function enterApp(user) {
   sttAvailable = !!state.stt && !!(navigator.mediaDevices && window.MediaRecorder);
   const langChip = $('#voiceLangBtn');
   if (langChip) langChip.style.display = sttAvailable ? 'none' : '';
+  /* Guests get a "Save account" button in the top bar. */
+  const saveBtn = $('#saveAccountBtn');
+  if (saveBtn) saveBtn.style.display = isGuest() ? '' : 'none';
 }
 
 function updateCredits(n) {
@@ -195,7 +210,7 @@ $('#authForm').addEventListener('submit', async (e) => {
 
 $('#logoutBtn').addEventListener('click', async () => {
   try { await api('/api/logout', { method: 'POST' }); } catch (_) {}
-  location.reload();
+  location.href = '/app?login=1';
 });
 
 /* ------------------------------ sidebar ------------------------------ */
@@ -429,8 +444,11 @@ async function send(textOverride) {
     if (t) t.remove();
     const b = document.createElement('div');
     b.className = 'emergency-banner';
-    b.innerHTML = `<i class="bi bi-x-circle"></i><div>${esc(e.message)}</div>`;
+    const guestOut = isGuest() && /credit/i.test(String(e.message || ''));
+    b.innerHTML = `<i class="bi bi-x-circle"></i><div>${esc(e.message)}${guestOut
+      ? '<div style="margin-top:9px"><button type="button" class="btn-gold small" id="chatSaveBtn">Create your free account to keep going</button></div>' : ''}</div>`;
     $('#messages').appendChild(b);
+    if (guestOut) { const cb = b.querySelector('#chatSaveBtn'); if (cb) cb.addEventListener('click', openUpgrade); }
     scrollToBottom();
   } finally {
     state.sending = false;
@@ -1094,6 +1112,33 @@ if ($('#shareCopy')) $('#shareCopy').addEventListener('click', async () => {
   const link = inviteLink || (location.origin + '/');
   try { await navigator.clipboard.writeText(link); toast('Invite link copied'); }
   catch (_) { toast('Copy is blocked here — long-press to copy manually.'); }
+});
+
+/* ---------- guest → real account ---------- */
+function isGuest() { return !!(state.user && String(state.user.username || '').indexOf('guest_') === 0); }
+function openUpgrade() {
+  const m = $('#upgradeModal');
+  if (!m) return;
+  const el = $('#upgradeError'); if (el) el.classList.add('hidden');
+  m.classList.remove('hidden');
+}
+if ($('#saveAccountBtn')) $('#saveAccountBtn').addEventListener('click', openUpgrade);
+if ($('#upgradeClose')) $('#upgradeClose').addEventListener('click', () => $('#upgradeModal').classList.add('hidden'));
+if ($('#upgradeSubmit')) $('#upgradeSubmit').addEventListener('click', async () => {
+  const btn = $('#upgradeSubmit');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const r = await api('/api/guest-upgrade', { method: 'POST', body: {
+      username: $('#upUsername').value.trim(), email: $('#upEmail').value.trim(), password: $('#upPassword').value } });
+    state.user = Object.assign({}, state.user, r.user);
+    $('#upgradeModal').classList.add('hidden');
+    const sb = $('#saveAccountBtn'); if (sb) sb.style.display = 'none';
+    toast('Account saved — log in from any device now');
+  } catch (e) {
+    const el = $('#upgradeError'); if (el) { el.textContent = e.message; el.classList.remove('hidden'); }
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save my account';
+  }
 });
 
 /* ---------- sidebar nav ---------- */
