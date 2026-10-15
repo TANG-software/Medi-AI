@@ -353,11 +353,13 @@
     <!-- Main -->
     <main class="main">
       <header class="topbar">
-        <button class="icon-btn" id="menuBtn" aria-label="Open menu"><i class="bi bi-list"></i></button>
-        <div class="topbar-brand"><i class="bi bi-activity"></i> <span>Metangy</span></div>
+        <button class="icon-btn flat" id="menuBtn" aria-label="Open menu"><i class="bi bi-list"></i></button>
         <div class="topbar-right">
-          <button type="button" class="mode-badge" id="modeBadge" title="Change mode — chat or Report Lens"><i class="bi bi-chat-heart"></i> Chat</button>
-          <button type="button" class="icon-btn" id="topCameraBtn" title="Scan a report with camera" aria-label="Scan a medical report with your camera"><i class="bi bi-camera-fill"></i></button>
+          <div class="mode-pill">
+            <button type="button" class="mode-badge" id="modeBadge" title="Change mode — chat or Report Lens"><i class="bi bi-chat-heart"></i> Chat</button>
+            <button type="button" class="icon-btn flat" id="topCameraBtn" title="Scan a report with camera" aria-label="Scan a medical report with your camera"><i class="bi bi-camera-fill"></i></button>
+          </div>
+          <button type="button" class="icon-btn flat" id="homeBtn" title="Home" aria-label="Back to the Metangy home page"><i class="bi bi-house-door"></i></button>
           <button type="button" class="btn-gold small" id="saveAccountBtn" style="display:none" title="Save your account so you can log in from any device">Save account</button>
           <span class="credit-pill top-credits"><i class="bi bi-lightning-charge"></i> <b id="creditCountTop">0</b></span>
         </div>

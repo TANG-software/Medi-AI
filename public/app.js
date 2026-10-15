@@ -1115,6 +1115,9 @@ if ($('#shareCopy')) $('#shareCopy').addEventListener('click', async () => {
   catch (_) { toast('Copy is blocked here — long-press to copy manually.'); }
 });
 
+/* Top-bar Home — back to the landing page. */
+if ($('#homeBtn')) $('#homeBtn').addEventListener('click', () => { location.href = '/'; });
+
 /* ---------- guest → real account ---------- */
 function isGuest() { return !!(state.user && String(state.user.username || '').indexOf('guest_') === 0); }
 function openUpgrade() {

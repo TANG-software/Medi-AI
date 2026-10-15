@@ -168,6 +168,14 @@ body {
   background: rgba(34, 211, 238, 0.09); border: 1px solid rgba(34, 211, 238, 0.25);
   padding: 5px 11px; border-radius: 999px; font-weight: 600;
 }
+/* Compact, borderless top-bar controls */
+.icon-btn.flat { background: none; border: 0; width: auto; height: auto; padding: 4px 5px; font-size: 22px; }
+.icon-btn.flat:hover { color: var(--text); border: 0; }
+.icon-btn#menuBtn { margin-left: -8px; }
+/* The mode selector and the scanner share one pill */
+.mode-pill { display: flex; align-items: center; gap: 2px; background: var(--glass); border: 1px solid var(--border-soft); border-radius: 999px; padding: 3px 4px; }
+.mode-pill .mode-badge { background: none; border: 0; padding: 4px 8px; }
+.mode-pill .icon-btn.flat { font-size: 18px; padding: 5px 7px; }
 .top-credits { display: none; }
 @media (min-width: 560px) { .top-credits { display: inline; } }
 
