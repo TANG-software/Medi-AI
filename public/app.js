@@ -479,7 +479,7 @@ function setMode(mode) {
   $$('.mode-option[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
   $('#modeMenu').classList.add('hidden');
   const m = MODE_META[mode];
-  $('#modeBadge').innerHTML = `<i class="bi ${m.icon}"></i> ${m.label}`;
+  const mb = $('#modeBadge'); if (mb) mb.innerHTML = `<i class="bi ${m.icon}"></i> ${m.label}`;
   $('#input').placeholder = mode === 'report'
     ? 'Ask about a report, or tap + to upload a photo…'
     : 'Ask Metangy anything…';

@@ -363,7 +363,6 @@
         <button class="icon-btn flat" id="menuBtn" aria-label="Open menu"><i class="bi bi-list"></i></button>
         <div class="topbar-right">
           <div class="mode-pill">
-            <button type="button" class="mode-badge" id="modeBadge" title="Change mode — chat or Report Lens"><i class="bi bi-chat-heart"></i> Chat</button>
             <button type="button" class="icon-btn flat" id="topCameraBtn" title="Scan a report with camera" aria-label="Scan a medical report with your camera"><i class="bi bi-camera-fill"></i></button>
           </div>
           <button type="button" class="icon-btn flat" id="homeBtn" title="Home" aria-label="Back to the Metangy home page"><i class="bi bi-house-door"></i></button>
@@ -1298,7 +1297,9 @@
       }
       var bar = null;
       function render() {
-        if (!isGuest()) return;
+        /* The guest strip that used to sit at the top of the chat was removed.
+           The top-bar "Save account" button and the in-chat prompt cover it. */
+        return;
         var credits = (state.user && typeof state.user.credits === 'number') ? state.user.credits : 0;
         if (!bar) {
           var main = document.querySelector('.main');
@@ -1313,7 +1314,7 @@
         bar.classList.toggle('out', out);
         bar.innerHTML = '<i class="bi bi-person-badge"></i> <span>' +
           (out
-            ? 'You have used all 3 guest credits — create a free account to get more credits.'
+            ? 'You have used all 9 guest credits — create a free account to get more credits.'
             : 'Guest mode · <b>' + credits + '</b> credit' + (credits === 1 ? '' : 's') + ' left') +
           '</span> <button type="button" id="guestBarSignup" class="btn-gold small">Create free account</button>';
         var b = bar.querySelector('#guestBarSignup');
@@ -1342,7 +1343,7 @@
         return p.then(function (r) {
           if (r.status !== 402) return r;
           return r.json().then(function (j) {
-            j.error = 'You have used all 3 guest credits. Create a free account to get more credits and keep your chats.';
+            j.error = 'You have used all 9 guest credits. Create a free account to get more credits and keep your chats.';
             return new Response(JSON.stringify(j), { status: 402, headers: { 'Content-Type': 'application/json' } });
           });
         });
