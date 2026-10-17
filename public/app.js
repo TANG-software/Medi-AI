@@ -101,8 +101,10 @@ async function boot() {
     state.languages = me.languages || [];
     state.stt = !!me.stt;   /* server-side auto-detect speech-to-text available */
     state.refill = me.refill || null;
-    if (me.user) enterApp(me.user);
-    else if (/[?&]login/.test(location.search)) showAuth();
+    /* ?login=1 must win even when a guest session already exists — otherwise
+       "Log in instead" just re-opens the app as the guest. */
+    if (/[?&]login/.test(location.search)) showAuth();
+    else if (me.user) enterApp(me.user);
     else await startGuest();
   } catch (e) {
     showAuth();
@@ -800,10 +802,28 @@ function registerSW() {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
 }
+function refreshInstallBtn() {
+  const b = $('#installBtn');
+  if (b) b.style.display = state.deferredInstall ? '' : 'none';
+}
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   state.deferredInstall = e;
-  toast('Install Metangy as an app from your browser menu!');
+  refreshInstallBtn();
+  try {
+    if (!localStorage.getItem('metangy_install_hint')) {
+      localStorage.setItem('metangy_install_hint', '1');
+      toast('Tip: you can install Metangy as an app — see “Install app” in the menu.');
+    }
+  } catch (err) { /* private mode */ }
+});
+if ($('#installBtn')) $('#installBtn').addEventListener('click', async () => {
+  const d = state.deferredInstall;
+  if (!d) { toast('Open your browser menu and choose “Install app” or “Add to Home screen”.'); return; }
+  d.prompt();
+  try { await d.userChoice; } catch (err) { /* dismissed */ }
+  state.deferredInstall = null;
+  refreshInstallBtn();
 });
 
 boot();
