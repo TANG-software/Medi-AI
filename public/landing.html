@@ -46,6 +46,9 @@
     .btn-primary small { display: block; font-weight: 600; font-size: 12.5px; opacity: .8; margin-top: 3px; }
     .btn-second { display: block; text-align: center; background: rgba(212,175,55,0.08); border: 1px solid rgba(212,175,55,0.45); color: var(--gold-soft); font-weight: 700; font-size: 16px; padding: 15px 22px; border-radius: 14px; text-decoration: none; }
     .btn-second:hover, .btn-primary:hover { filter: brightness(1.06); }
+    .btn-install { display: block; width: 100%; margin-top: 12px; background: rgba(212,175,55,0.08); border: 1px dashed rgba(212,175,55,0.5); color: var(--gold-soft); font-weight: 700; font-size: 15px; padding: 13px 18px; border-radius: 14px; cursor: pointer; font-family: inherit; }
+    .btn-install:hover { border-style: solid; }
+    .install-hint { font-size: 13px; color: var(--grey); margin: 8px 0 0; }
     h2 { font-size: 20px; color: var(--gold-soft); margin: 40px 0 10px; }
     ul { padding-left: 20px; } li { color: #ddd8cc; font-size: 15.5px; margin-bottom: 6px; }
     .grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 12px; }
@@ -74,6 +77,9 @@
       <a class="btn-primary" href="/app">Try Metangy<small>Free &middot; no account needed &middot; opens straight away</small></a>
       <a class="btn-second" href="/guides.html">Browse health guides</a>
     </div>
+
+    <button type="button" class="btn-install" id="installApp" style="display:none">⬇️ Install Metangy as an app — one tap, no store</button>
+    <p class="install-hint" id="installHint"></p>
 
     <div class="note"><b>Metangy gives general health information, not a medical diagnosis.</b> In an emergency call <b>112</b> (India).</div>
 
@@ -104,5 +110,32 @@
       <div style="margin-top:6px">Metangy gives general health information only — it is not a medical diagnosis. In an emergency call 112 (India).</div>
     </footer>
   </div>
+  <script>
+    /* "Install app" — only appears when the browser says the app is installable. */
+    (function () {
+      var deferred = null;
+      var btn = document.getElementById('installApp');
+      var hint = document.getElementById('installHint');
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        deferred = e;
+        if (btn) btn.style.display = 'block';
+        if (hint) hint.textContent = '';
+      });
+      if (btn) btn.addEventListener('click', function () {
+        if (!deferred) {
+          if (hint) hint.textContent = 'Open your browser menu and choose \u201cInstall app\u201d or \u201cAdd to Home screen\u201d. On iPhone use Share \u2192 Add to Home Screen.';
+          return;
+        }
+        deferred.prompt();
+        deferred = null;
+        btn.style.display = 'none';
+      });
+      window.addEventListener('appinstalled', function () {
+        if (btn) btn.style.display = 'none';
+        if (hint) hint.textContent = 'Metangy is installed \u2014 open it from your home screen.';
+      });
+    })();
+  </script>
 </body>
 </html>
